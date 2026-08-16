@@ -37,10 +37,10 @@ ENV PYTHONPATH=/app
 
 # ── Python dependencies ──────────────────────────────────────────────
 COPY pyproject.toml .
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir --retries 10 --timeout 120 \
     numpy scipy pandas statsmodels scikit-learn \
     pydantic fastapi uvicorn pytest pytest-cov \
-    && pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu
+    && pip install --no-cache-dir --retries 10 --timeout 120 torch --extra-index-url https://download.pytorch.org/whl/cpu
 
 # ── Copy project files ───────────────────────────────────────────────
 COPY baws_engine/ baws_engine/
