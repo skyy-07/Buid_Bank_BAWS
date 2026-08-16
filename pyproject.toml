@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "baws-nn-engine"
+version = "0.1.0"
+description = "Bootstrap-Based Adaptive Window Selection & Neural Network Risk Engine"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Proprietary"}
+
+dependencies = [
+    "numpy>=1.24.0",
+    "scipy>=1.11.0",
+    "pandas>=2.0.0",
+    "statsmodels>=0.14.0",
+    "scikit-learn>=1.3.0",
+    "torch>=2.1.0",
+    "pydantic>=2.0.0",
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.25.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

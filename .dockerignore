@@ -1,0 +1,37 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# C++ build artifacts
+cpp_core/build/
+cpp_core/out/
+*.o
+*.obj
+*.dll
+*.so
+*.dylib
+*.lib
+*.exp
+
+# Node.js
+js_bridge/node_modules/
+js_bridge/package-lock.json
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Docker
+.dockerignore
