@@ -62,4 +62,4 @@ RUN chmod +x /entrypoint.sh
 EXPOSE 8000 3000
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["test"]
+CMD ["api"]

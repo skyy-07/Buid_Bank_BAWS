@@ -440,7 +440,7 @@ def select_adaptive_window(
         loss_differences.append(D)
 
         # Rejection test: T_k = I(D > τ)
-        if D > threshold:
+        if D > threshold + 1e-4:
             rejection_vector.append(1)
             break_detected = True
         else:

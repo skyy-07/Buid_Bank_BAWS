@@ -43,8 +43,8 @@ class TestPinballLoss:
         q = 10.0
         alpha = 0.90
         loss = pinball_loss(x, q, alpha)
-        expected = alpha * (15.0 - 10.0)  # 4.5 (negated in our formula)
-        np.testing.assert_allclose(loss, [-expected + alpha * (15 - 10) + (1-alpha)*0])
+        expected = alpha * (15.0 - 10.0)  # 4.5
+        np.testing.assert_allclose(loss, [expected])
 
     def test_at_quantile(self):
         """When x = q, loss should be 0."""
@@ -58,7 +58,7 @@ class TestPinballLoss:
         rng = np.random.default_rng(42)
         data = rng.normal(100, 20, 10000)
         alpha = 0.90
-        true_quantile = np.quantile(data, 1.0 - alpha)
+        true_quantile = np.quantile(data, alpha)
 
         # Search for minimizer
         best_q = None
