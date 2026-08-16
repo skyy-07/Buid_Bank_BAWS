@@ -17,7 +17,8 @@ FROM gcc:13 AS cpp-builder
 WORKDIR /build
 COPY cpp_core/ .
 
-RUN cmake -B out -DCMAKE_BUILD_TYPE=Release \
+RUN apt-get update && apt-get install -y --no-install-recommends cmake \
+    && cmake -B out -DCMAKE_BUILD_TYPE=Release \
     && cmake --build out --config Release
 
 
