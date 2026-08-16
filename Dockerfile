@@ -39,7 +39,7 @@ COPY pyproject.toml .
 RUN pip install --no-cache-dir \
     numpy scipy pandas statsmodels scikit-learn \
     pydantic fastapi uvicorn pytest pytest-cov \
-    torch --index-url https://download.pytorch.org/whl/cpu
+    && pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu
 
 # ── Copy project files ───────────────────────────────────────────────
 COPY baws_engine/ baws_engine/
