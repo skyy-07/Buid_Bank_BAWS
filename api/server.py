@@ -12,6 +12,15 @@ Endpoints:
 
 from __future__ import annotations
 
+import os
+import sys
+from pathlib import Path
+
+# Add project root to sys.path for module resolution
+root_dir = Path(__file__).resolve().parent.parent
+if str(root_dir) not in sys.path:
+    sys.path.insert(0, str(root_dir))
+
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -137,9 +146,9 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
 
+    port = int(os.getenv("PORT", 8000))
     uvicorn.run(
         "api.server:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True,
+        port=port,
     )
