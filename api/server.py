@@ -85,6 +85,22 @@ class HealthResponse(BaseModel):
 # Routes
 # ─────────────────────────────────────────────────────────────────────
 
+@app.get("/", summary="Root API Index")
+async def root_index():
+    """Root URL returning API details and docs link."""
+    return {
+        "engine": "BAWS-NN Risk Engine",
+        "status": "online",
+        "version": "0.1.0",
+        "documentation": "/docs",
+        "endpoints": {
+            "evaluate": "POST /api/v1/evaluate",
+            "health": "GET /api/v1/health",
+            "swaggerDocs": "GET /docs",
+            "redoc": "GET /redoc"
+        }
+    }
+
 @app.post(
     "/api/v1/evaluate",
     response_model=BAWSRiskResult,
