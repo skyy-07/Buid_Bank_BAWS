@@ -104,6 +104,18 @@ export async function registerWithEmailPassword(
   displayName: string,
   role: 'borrower' | 'underwriter' = 'borrower'
 ): Promise<AppUserProfile> {
+  if (!auth) {
+    return {
+      uid: `demo-user-${Date.now()}`,
+      email: email || 'aarti.sharma@baws-agri.in',
+      displayName: displayName || email.split('@')[0] || 'Aarti Sharma',
+      role,
+      linkedBorrowerId: role === 'borrower' ? 'baws-user-aarti-8821' : 'nbfc-officer',
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+  }
+
   const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
   const user = userCredential.user;
 
@@ -125,12 +137,14 @@ export async function registerWithEmailPassword(
   };
 
   try {
-    const userDocRef = doc(db, 'users', user.uid);
-    await setDoc(userDocRef, {
-      ...profile,
-      serverCreatedAt: serverTimestamp(),
-      serverLastLogin: serverTimestamp(),
-    });
+    if (db) {
+      const userDocRef = doc(db, 'users', user.uid);
+      await setDoc(userDocRef, {
+        ...profile,
+        serverCreatedAt: serverTimestamp(),
+        serverLastLogin: serverTimestamp(),
+      });
+    }
   } catch (err) {
     console.warn('Firestore doc write skipped or pending permissions:', err);
   }
@@ -145,6 +159,18 @@ export async function loginWithEmailPassword(
   email: string,
   pass: string
 ): Promise<AppUserProfile> {
+  if (!auth) {
+    return {
+      uid: 'baws-user-aarti-8821',
+      email: email || 'aarti.sharma@baws-agri.in',
+      displayName: email ? email.split('@')[0] : 'Aarti Sharma',
+      role: 'borrower',
+      linkedBorrowerId: 'baws-user-aarti-8821',
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+  }
+
   const userCredential = await signInWithEmailAndPassword(auth, email, pass);
   const user = userCredential.user;
 
@@ -218,6 +244,18 @@ export async function loginOrRegisterWithEmail(
 export async function loginWithGooglePopup(
   role: 'borrower' | 'underwriter' = 'borrower'
 ): Promise<AppUserProfile> {
+  if (!auth) {
+    return {
+      uid: 'google-demo-user',
+      email: 'aarti.sharma@baws-agri.in',
+      displayName: 'Aarti Sharma',
+      photoURL: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+      role,
+      linkedBorrowerId: 'baws-user-aarti-8821',
+      lastLoginAt: new Date().toISOString(),
+    };
+  }
+
   const result = await signInWithPopup(auth, googleProvider);
   const user = result.user;
 

@@ -54,7 +54,18 @@ export default function App() {
     return cached.length > 0 ? cached : getAvailableArchetypes();
   });
   const [currentUser, setCurrentUser] = useState<OAuthUser | null>(() => {
-    return getCachedAuthUser();
+    const cached = getCachedAuthUser();
+    if (cached) return cached;
+    return {
+      id: 'baws-user-aarti-8821',
+      email: 'aarti.sharma@baws-agri.in',
+      name: 'Aarti Sharma',
+      picture: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+      provider: 'demo',
+      role: 'borrower',
+      linkedBorrowerId: 'baws-user-aarti-8821',
+      loginTimestamp: new Date().toISOString(),
+    };
   });
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [isDeviceFrameView, setIsDeviceFrameView] = useState(true);
