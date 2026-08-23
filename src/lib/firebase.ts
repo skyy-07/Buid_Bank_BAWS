@@ -22,20 +22,30 @@ import {
   getDocs,
   serverTimestamp,
 } from 'firebase/firestore';
-import rawFirebaseConfig from '../../firebase-applet-config.json';
 import { BorrowerProfile } from '../types';
+
+// Fallback configuration if firebase-applet-config.json is absent (e.g. in git builds)
+const defaultFirebaseConfig = {
+  projectId: "boxwood-atom-476404-b5",
+  appId: "1:917898093765:web:b3fb32d82d0c4cf9657cac",
+  apiKey: "AIzaSyD1s2_MLw413Y4XNFel3TjxYDMgU9kXIQw",
+  authDomain: "boxwood-atom-476404-b5.firebaseapp.com",
+  firestoreDatabaseId: "(default)",
+  storageBucket: "boxwood-atom-476404-b5.firebasestorage.app",
+  messagingSenderId: "917898093765",
+};
 
 // Support environment variable overrides for production deployment (#16)
 const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : (process.env || {});
 
 const firebaseConfig = {
-  projectId: env.VITE_FIREBASE_PROJECT_ID || env.FIREBASE_PROJECT_ID || rawFirebaseConfig.projectId,
-  appId: env.VITE_FIREBASE_APP_ID || env.FIREBASE_APP_ID || rawFirebaseConfig.appId,
-  apiKey: env.VITE_FIREBASE_API_KEY || env.FIREBASE_API_KEY || rawFirebaseConfig.apiKey,
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || env.FIREBASE_AUTH_DOMAIN || rawFirebaseConfig.authDomain,
-  firestoreDatabaseId: env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || env.FIREBASE_FIRESTORE_DATABASE_ID || rawFirebaseConfig.firestoreDatabaseId || '(default)',
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || env.FIREBASE_STORAGE_BUCKET || rawFirebaseConfig.storageBucket,
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || env.FIREBASE_MESSAGING_SENDER_ID || rawFirebaseConfig.messagingSenderId,
+  projectId: env.VITE_FIREBASE_PROJECT_ID || env.FIREBASE_PROJECT_ID || defaultFirebaseConfig.projectId,
+  appId: env.VITE_FIREBASE_APP_ID || env.FIREBASE_APP_ID || defaultFirebaseConfig.appId,
+  apiKey: env.VITE_FIREBASE_API_KEY || env.FIREBASE_API_KEY || defaultFirebaseConfig.apiKey,
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || env.FIREBASE_AUTH_DOMAIN || defaultFirebaseConfig.authDomain,
+  firestoreDatabaseId: env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || env.FIREBASE_FIRESTORE_DATABASE_ID || defaultFirebaseConfig.firestoreDatabaseId,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || env.FIREBASE_STORAGE_BUCKET || defaultFirebaseConfig.storageBucket,
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || env.FIREBASE_MESSAGING_SENDER_ID || defaultFirebaseConfig.messagingSenderId,
 };
 
 // Initialize Firebase App
