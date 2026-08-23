@@ -81,15 +81,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const handleDownloadPDF = () => {
     setIsGeneratingPDF(true);
-    try {
-      generateRiskAndBufferPDF(profile);
-      setPdfSuccess(true);
-      setTimeout(() => setPdfSuccess(false), 3500);
-    } catch (err) {
-      console.error('Failed to generate PDF:', err);
-    } finally {
-      setIsGeneratingPDF(false);
-    }
+    setTimeout(() => {
+      try {
+        generateRiskAndBufferPDF(profile);
+        setPdfSuccess(true);
+        setTimeout(() => setPdfSuccess(false), 3500);
+      } catch (err) {
+        console.error('Failed to generate PDF:', err);
+      } finally {
+        setIsGeneratingPDF(false);
+      }
+    }, 50);
   };
 
   const handleManualCelebrationPreview = () => {

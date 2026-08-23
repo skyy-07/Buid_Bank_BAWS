@@ -148,6 +148,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
   };
 
   useEffect(() => {
+    let frameId: number;
     if (isOpen) {
       fireCelebratoryConfetti();
 
@@ -166,27 +167,32 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
         setDisplayScore(currentVal);
 
         if (progress < 1) {
-          requestAnimationFrame(updateTicker);
+          frameId = requestAnimationFrame(updateTicker);
         } else {
           setDisplayScore(end);
         }
       };
 
-      requestAnimationFrame(updateTicker);
+      frameId = requestAnimationFrame(updateTicker);
     }
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId);
+    };
   }, [isOpen, newScore, previousScore]);
 
   const handleDownloadPDF = () => {
     setIsDownloading(true);
-    try {
-      generateRiskAndBufferPDF(profile);
-      setDownloadSuccess(true);
-      setTimeout(() => setDownloadSuccess(false), 3500);
-    } catch (e) {
-      console.error('PDF error:', e);
-    } finally {
-      setIsDownloading(false);
-    }
+    setTimeout(() => {
+      try {
+        generateRiskAndBufferPDF(profile);
+        setDownloadSuccess(true);
+        setTimeout(() => setDownloadSuccess(false), 3500);
+      } catch (e) {
+        console.error('PDF error:', e);
+      } finally {
+        setIsDownloading(false);
+      }
+    }, 50);
   };
 
   if (!isOpen) return null;

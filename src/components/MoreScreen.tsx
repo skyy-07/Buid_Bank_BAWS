@@ -56,6 +56,20 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
 }) => {
   const [activeSection, setActiveSection] = useState<'passport' | 'simulator' | 'nbfc' | 'bank' | 'auth' | 'switch'>('passport');
   const [copiedHash, setCopiedHash] = useState(false);
+  const [isPdfProcessing, setIsPdfProcessing] = useState(false);
+
+  const handleGeneratePDFAsync = () => {
+    setIsPdfProcessing(true);
+    setTimeout(() => {
+      try {
+        generateRiskAndBufferPDF(profile, currentUser);
+      } catch (err) {
+        console.error('PDF generation error:', err);
+      } finally {
+        setIsPdfProcessing(false);
+      }
+    }, 50);
+  };
   const [simulatingType, setSimulatingType] = useState<string | null>(null);
   const [isSyncingBank, setIsSyncingBank] = useState(false);
   const [bankSyncMsg, setBankSyncMsg] = useState<string | null>(null);
@@ -357,11 +371,12 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
             {/* Official PDF Certificate & Buffer Audit Download Button */}
             <div className="pt-2">
               <button
-                onClick={() => generateRiskAndBufferPDF(profile, currentUser)}
-                className="w-full py-3 bg-[#123524] hover:bg-[#1a4a33] active:scale-99 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-md"
+                onClick={handleGeneratePDFAsync}
+                disabled={isPdfProcessing}
+                className="w-full py-3 bg-[#123524] hover:bg-[#1a4a33] active:scale-99 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50"
               >
                 <FileDown className="w-4 h-4 text-[#98d4ad]" />
-                <span>Download Official PDF Risk & Buffer Report</span>
+                <span>{isPdfProcessing ? 'Building PDF Report...' : 'Download Official PDF Risk & Buffer Report'}</span>
               </button>
             </div>
           </div>
@@ -537,11 +552,12 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
 
             {/* NBFC PDF Export */}
             <button
-              onClick={() => generateRiskAndBufferPDF(profile, currentUser)}
-              className="w-full py-2.5 bg-[#f4efe4] hover:bg-[#eae3d2] text-[#123524] font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-all border border-[#e5ded0]"
+              onClick={handleGeneratePDFAsync}
+              disabled={isPdfProcessing}
+              className="w-full py-2.5 bg-[#f4efe4] hover:bg-[#eae3d2] text-[#123524] font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-all border border-[#e5ded0] disabled:opacity-50"
             >
               <FileDown className="w-4 h-4 text-[#123524]" />
-              <span>Export Institutional Risk Assessment (PDF)</span>
+              <span>{isPdfProcessing ? 'Building PDF Report...' : 'Export Institutional Risk Assessment (PDF)'}</span>
             </button>
           </div>
         </div>

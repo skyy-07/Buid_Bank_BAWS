@@ -100,35 +100,38 @@ export default function App() {
       });
 
     // Listen to live Firebase Auth state changes
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const mappedUser: OAuthUser = {
-          id: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-          picture:
-            firebaseUser.photoURL ||
-            'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
-          provider: firebaseUser.providerData[0]?.providerId?.includes('google') ? 'google' : 'demo',
-          role: 'borrower',
-          linkedBorrowerId: 'baws-user-aarti-8821',
-          loginTimestamp: new Date().toISOString(),
-        };
-        setCurrentUser(mappedUser);
-        cacheAuthUser(mappedUser);
+    let unsubscribe = () => {};
+    if (auth) {
+      unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (firebaseUser) {
+          const mappedUser: OAuthUser = {
+            id: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+            picture:
+              firebaseUser.photoURL ||
+              'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+            provider: firebaseUser.providerData[0]?.providerId?.includes('google') ? 'google' : 'demo',
+            role: 'borrower',
+            linkedBorrowerId: 'baws-user-aarti-8821',
+            loginTimestamp: new Date().toISOString(),
+          };
+          setCurrentUser(mappedUser);
+          cacheAuthUser(mappedUser);
 
-        // Check if there is saved profile data in Firestore for this user
-        try {
-          const savedData = await getUserComprehensiveData(firebaseUser.uid);
-          if (savedData?.borrowerProfile) {
-            setProfile(savedData.borrowerProfile as BorrowerProfile);
-            cacheBorrowerProfile(savedData.borrowerProfile as BorrowerProfile);
+          // Check if there is saved profile data in Firestore for this user
+          try {
+            const savedData = await getUserComprehensiveData(firebaseUser.uid);
+            if (savedData?.borrowerProfile) {
+              setProfile(savedData.borrowerProfile as BorrowerProfile);
+              cacheBorrowerProfile(savedData.borrowerProfile as BorrowerProfile);
+            }
+          } catch (e) {
+            console.warn('Could not retrieve Firestore user profile, using local cache:', e);
           }
-        } catch (e) {
-          console.warn('Could not retrieve Firestore user profile, using local cache:', e);
         }
-      }
-    });
+      });
+    }
 
     return () => unsubscribe();
   }, []);
