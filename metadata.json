@@ -1,0 +1,6 @@
+{
+  "name": "BAWS Adaptive Financial Risk Platform",
+  "description": "Real-time cash-flow underwriting and adaptive financial resilience platform powered by the Bootstrap-Based Adaptive Window Selection (BAWS) engine.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,15 +1,3 @@
-/**
- * BAWS-NN Engine — Node.js Orchestrator
- *
- * Coordinates between:
- *   - Python subprocess (preprocessing, STL, neural network)
- *   - C++ native library (MBB bootstrap, break detection)
- *   - JavaScript (score computation, API response assembly)
- *
- * For standalone use, the orchestrator can run the full pipeline
- * using the JS fallback when Python/C++ are not available.
- */
-
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -20,9 +8,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let nativeAvailable = false;
 
 /**
- * Initialize the engine orchestrator.
- * Attempts to load the C++ native library.
- *
  * @returns {Promise<boolean>} True if native library is available.
  */
 export async function initEngine() {
@@ -36,11 +21,6 @@ export async function initEngine() {
 }
 
 /**
- * Call the Python BAWS engine via subprocess.
- *
- * Sends cash-flow data as JSON to the Python engine's stdin and
- * reads the result from stdout.
- *
  * @param {object} inputData - Cash-flow input data.
  * @returns {Promise<object>} Engine evaluation result.
  */
@@ -113,12 +93,6 @@ export function evaluateNative(cashFlows, options = {}) {
 }
 
 /**
- * Full evaluation orchestrator.
- *
- * Strategy:
- *   1. Try Python engine (full pipeline with STL, neural, etc.)
- *   2. Fall back to C++ kernel + JS scoring
- *   3. Final fallback: pure JS implementation
  *
  * @param {object} inputData - Input data with cash flows.
  * @param {object} [options] - Orchestration options.

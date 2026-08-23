@@ -1,0 +1,71 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile document with linked borrower data, telemetry preferences, custom risk settings, and account metadata",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["borrower", "underwriter", "admin"] },
+        "linkedBorrowerId": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "sector": { "type": "string" },
+        "currentLiquidBuffer": { "type": "number" },
+        "targetBuffer": { "type": "number" },
+        "optimalLookbackWindowK": { "type": "number" },
+        "trustScore": { "type": "number" },
+        "resilienceScore": { "type": "number" },
+        "connectedBankAccounts": { "type": "array" },
+        "actionStatuses": { "type": "object" },
+        "preferences": { "type": "object" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "email", "role"]
+    },
+    "UserLoanApplication": {
+      "title": "UserLoanApplication",
+      "description": "Adaptive loan applications and credit limits requested by the user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "borrowerId": { "type": "string" },
+        "requestedAmount": { "type": "number" },
+        "sector": { "type": "string" },
+        "safeLimit": { "type": "number" },
+        "status": { "type": "string", "enum": ["approved", "under_review", "active", "cancelled"] },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["userId", "requestedAmount", "status"]
+    },
+    "UserActivityLog": {
+      "title": "UserActivityLog",
+      "description": "Telemetry and user risk action audit history",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "actionType": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["userId", "actionType"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Individual user accounts with private permissions"
+    },
+    "/users/{userId}/loans/{loanId}": {
+      "schema": "UserLoanApplication",
+      "description": "Loan history and live applications created by the user"
+    },
+    "/users/{userId}/activity_logs/{logId}": {
+      "schema": "UserActivityLog",
+      "description": "User activity events and audit history"
+    }
+  }
+}
