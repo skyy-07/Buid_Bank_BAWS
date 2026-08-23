@@ -27,27 +27,52 @@ import { BorrowerProfile } from '../types';
 // Support environment variable overrides for production deployment (#16)
 const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : (process.env || {});
 
-const firebaseConfig = {
-  projectId: env.VITE_FIREBASE_PROJECT_ID || env.FIREBASE_PROJECT_ID || "",
-  appId: env.VITE_FIREBASE_APP_ID || env.FIREBASE_APP_ID || "",
-  apiKey: env.VITE_FIREBASE_API_KEY || env.FIREBASE_API_KEY || "",
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || env.FIREBASE_AUTH_DOMAIN || "",
-  firestoreDatabaseId: env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || env.FIREBASE_FIRESTORE_DATABASE_ID || "(default)",
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || env.FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || env.FIREBASE_MESSAGING_SENDER_ID || "",
+const defaultFirebaseConfig = {
+  projectId: "boxwood-atom-476404-b5",
+  appId: "1:917898093765:web:b3fb32d82d0c4cf9657cac",
+  apiKey: "AIzaSyD1s2_MLw413Y4XNFel3TjxYDMgU9kXIQw",
+  authDomain: "boxwood-atom-476404-b5.firebaseapp.com",
+  firestoreDatabaseId: "(default)",
+  storageBucket: "boxwood-atom-476404-b5.firebasestorage.app",
+  messagingSenderId: "917898093765",
 };
 
-// Initialize Firebase App
-export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const firebaseConfig = {
+  projectId: env.VITE_FIREBASE_PROJECT_ID || env.FIREBASE_PROJECT_ID || defaultFirebaseConfig.projectId,
+  appId: env.VITE_FIREBASE_APP_ID || env.FIREBASE_APP_ID || defaultFirebaseConfig.appId,
+  apiKey: env.VITE_FIREBASE_API_KEY || env.FIREBASE_API_KEY || defaultFirebaseConfig.apiKey,
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || env.FIREBASE_AUTH_DOMAIN || defaultFirebaseConfig.authDomain,
+  firestoreDatabaseId: env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || env.FIREBASE_FIRESTORE_DATABASE_ID || defaultFirebaseConfig.firestoreDatabaseId,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || env.FIREBASE_STORAGE_BUCKET || defaultFirebaseConfig.storageBucket,
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || env.FIREBASE_MESSAGING_SENDER_ID || defaultFirebaseConfig.messagingSenderId,
+};
 
-// Initialize Firebase Auth
-export const auth = getAuth(app);
+// Safe initialization helpers to prevent unhandled top-level import crashes
+let appInstance: any = null;
+let authInstance: any = null;
+let dbInstance: any = null;
+let googleProviderInstance: any = null;
 
-// Initialize Firestore using configured or default database ID
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+try {
+  const existingApps = getApps();
+  if (existingApps.length > 0) {
+    appInstance = existingApps[0];
+  } else if (firebaseConfig.apiKey && firebaseConfig.projectId) {
+    appInstance = initializeApp(firebaseConfig);
+  }
+  if (appInstance) {
+    authInstance = getAuth(appInstance);
+    dbInstance = getFirestore(appInstance, firebaseConfig.firestoreDatabaseId || '(default)');
+    googleProviderInstance = new GoogleAuthProvider();
+  }
+} catch (err) {
+  console.warn('[Firebase SDK Notice] Gracefully running in fallback mode:', err);
+}
 
-// Google Auth Provider
-export const googleProvider = new GoogleAuthProvider();
+export const app = appInstance;
+export const auth = authInstance;
+export const db = dbInstance;
+export const googleProvider = googleProviderInstance;
 
 export interface AppUserProfile {
   uid: string;
