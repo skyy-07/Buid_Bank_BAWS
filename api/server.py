@@ -32,10 +32,6 @@ from baws_engine.engine import BAWSEngine
 from baws_engine.schemas import BAWSRiskResult
 
 
-# ─────────────────────────────────────────────────────────────────────
-# App Configuration
-# ─────────────────────────────────────────────────────────────────────
-
 app = FastAPI(
     title="BAWS-NN Risk Engine",
     description=(

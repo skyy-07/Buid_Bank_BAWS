@@ -42,25 +42,21 @@ RUN pip install --no-cache-dir --retries 10 --timeout 120 \
     pydantic fastapi uvicorn pytest pytest-cov \
     && pip install --no-cache-dir --retries 10 --timeout 120 torch --extra-index-url https://download.pytorch.org/whl/cpu
 
-# ── Copy project files ───────────────────────────────────────────────
-COPY baws_engine/ baws_engine/
-COPY data/ data/
-COPY tests/ tests/
-COPY api/ api/
+# ── Copy all project files ───────────────────────────────────────────
+COPY . .
 
 # ── Copy compiled C++ library ────────────────────────────────────────
 COPY --from=cpp-builder /build/out/libbaws_core.so /app/cpp_core/
-COPY cpp_core/*.h /app/cpp_core/
 
-# ── Node.js dependencies ─────────────────────────────────────────────
-COPY js_bridge/ js_bridge/
-RUN cd js_bridge && npm install --omit=dev 2>/dev/null || true
+# ── Install Node dependencies & build Web App ─────────────────────────
+RUN npm install
+RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 # ── Entrypoint ────────────────────────────────────────────────────────
 COPY docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 8000 3000
+EXPOSE 10000 3000 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["api"]
+CMD ["app"]

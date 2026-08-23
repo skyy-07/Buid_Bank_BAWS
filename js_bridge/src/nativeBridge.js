@@ -81,10 +81,10 @@ export function initNativeLibrary(libraryPath) {
     // Define the BawsRiskResult struct
     BawsRiskResult = koffi.struct('BawsRiskResult', {
         optimal_window_k: 'int32_t',
-        break_detected:   'int32_t',
-        var_90:           'float',
-        es_90:            'float',
-        trust_score:      'float',
+        break_detected: 'int32_t',
+        var_90: 'float',
+        es_90: 'float',
+        trust_score: 'float',
         resilience_score: 'float',
     });
 

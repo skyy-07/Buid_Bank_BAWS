@@ -13,35 +13,22 @@
     #define BAWS_API __attribute__((visibility("default")))
 #endif
 
-/**
- * BAWS Risk Assessment Result Structure
- *
- * Contains the output of the C++ BAWS evaluation kernel.
- * Memory layout is fixed for FFI interop (Node.js koffi, Python ctypes).
- *
- * Total size: 24 bytes (2 × int32 + 4 × float32)
- * Alignment: 4 bytes
- */
+//  * Total size: 24 bytes (2 × int32 + 4 × float32)
+//  * Alignment: 4 bytes
+//  
 struct BawsRiskResult {
     int32_t optimal_window_k;   // Selected adaptive look-back window k̂_t
     int32_t break_detected;     // 1 if structural break found, 0 otherwise
     float   var_90;             // Value-at-Risk at 90% confidence
     float   es_90;              // Expected Shortfall at 90% confidence
-    float   trust_score;        // Composite Financial Trust Score [300, 850]
-    float   resilience_score;   // Financial Resilience Score [0, 1.0]
+    float   trust_score;        // Composite Financial Trust Score 
+    float   resilience_score;   // Financial Resilience Score
 };
 
 extern "C" {
 
 /**
  * Evaluate BAWS risk for a single borrower's cash-flow series.
- *
- * This is the high-performance C++ kernel for the MBB bootstrap
- * and sequential break detection. Designed to be called from:
- *   - Node.js via koffi/ffi-napi
- *   - Python via ctypes/cffi
- *   - Java via FFM (Panama)
- *
  * @param raw_series   Pointer to deseasonalized residual float array X̃_t
  * @param series_len   Length of the input series
  * @param alpha        VaR/ES confidence level (e.g., 0.90)
@@ -61,10 +48,6 @@ BAWS_API void evaluate_baws_risk(
 );
 
 /**
- * Calibrate MBB threshold for a given reference window.
- *
- * Exposed separately for testing and validation of Theorem 1.
- *
  * @param series      Pointer to reference window data
  * @param series_len  Length of the reference window
  * @param alpha       VaR confidence level
@@ -80,6 +63,5 @@ BAWS_API float calibrate_mbb_threshold_c(
     float        beta
 );
 
-} // extern "C"
-
-#endif // BAWS_ENGINE_H
+}
+#endif 
