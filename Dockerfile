@@ -50,7 +50,7 @@ COPY --from=cpp-builder /build/out/libbaws_core.so /app/cpp_core/
 
 # ── Install Node dependencies & build Web App ─────────────────────────
 RUN npm install
-RUN npm run build
+RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 # ── Entrypoint ────────────────────────────────────────────────────────
 COPY docker-entrypoint.sh /entrypoint.sh

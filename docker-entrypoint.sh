@@ -41,7 +41,7 @@ case "${1}" in
         echo "  BAWS Adaptive Platform — Node Production Server"
         echo "═══════════════════════════════════════════════════"
         echo ""
-        npm run build && npm run start
+        npm run start
         ;;
     api-node)
         echo ""
