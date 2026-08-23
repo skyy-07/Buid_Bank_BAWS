@@ -60,7 +60,10 @@ RUN cd js_bridge && npm install --omit=dev 2>/dev/null || true
 COPY docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 8000 3000
+# ── Build Node Web App ───────────────────────────────────────────────
+RUN npm install
+
+EXPOSE 10000 3000 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["api"]
+CMD ["app"]

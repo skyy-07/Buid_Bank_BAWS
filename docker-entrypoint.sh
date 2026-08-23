@@ -35,6 +35,14 @@ case "${1}" in
         echo ""
         python api/server.py
         ;;
+    app|web|node-app|default)
+        echo ""
+        echo "═══════════════════════════════════════════════════"
+        echo "  BAWS Adaptive Platform — Node Production Server"
+        echo "═══════════════════════════════════════════════════"
+        echo ""
+        npm run build && npm run start
+        ;;
     api-node)
         echo ""
         echo "═══════════════════════════════════════════════════"
@@ -51,3 +59,4 @@ case "${1}" in
         exec "$@"
         ;;
 esac
+
