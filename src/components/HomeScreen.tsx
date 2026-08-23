@@ -52,28 +52,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const liquidBuffer = profile.currentLiquidBuffer;
   const essentialDays = profile.scoringProfile.formulaBreakdown.essentialDaysCovered || 9;
 
-  // Track previous resilience score to detect increases across milestones
+  // Track previous resilience score to detect manual user actions
   const prevResilienceRef = useRef<number>(resilience);
+  const isInitialMount = useRef<boolean>(true);
 
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      prevResilienceRef.current = resilience;
+      return;
+    }
+
     const prevScore = prevResilienceRef.current;
     const currentScore = resilience;
 
-    // Check if score has increased
-    if (currentScore > prevScore) {
-      // Check threshold milestones (85, 80, 75, 70)
+    // Check if score has increased significantly after user action
+    if (currentScore > prevScore && currentScore - prevScore >= 2.5) {
       const crossedMilestone = RESILIENCE_MILESTONES.find(
         (m) => prevScore < m.threshold && currentScore >= m.threshold
       );
 
-      // Or significant increase of >= 2.5 points
-      if (crossedMilestone || currentScore - prevScore >= 2.5) {
-        const threshold = crossedMilestone ? crossedMilestone.threshold : (currentScore >= 70 ? 70 : 65);
-        setCelebrationPrevScore(prevScore);
-        setCelebrationNewScore(currentScore);
-        setThresholdCrossed(threshold);
-        setIsCelebrationOpen(true);
-      }
+      const threshold = crossedMilestone ? crossedMilestone.threshold : (currentScore >= 70 ? 70 : 65);
+      setCelebrationPrevScore(prevScore);
+      setCelebrationNewScore(currentScore);
+      setThresholdCrossed(threshold);
+      setIsCelebrationOpen(true);
     }
 
     prevResilienceRef.current = currentScore;
