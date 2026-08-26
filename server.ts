@@ -28,6 +28,12 @@ import {
 // In-memory store initialized with realistic seed profiles
 const profilesStore: Record<string, BorrowerProfile> = Object.create(null);
 
+const BLOCKED_PROFILE_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+
+function isSafeProfileKey(id: unknown): id is string {
+  return typeof id === 'string' && !BLOCKED_PROFILE_KEYS.has(id);
+}
+
 function initStore() {
   const archetypes = getAvailableArchetypes();
   for (const prof of archetypes) {
@@ -297,7 +303,11 @@ async function startServer() {
   // 4b. Update Borrower Profile Name & Metadata
   app.post('/api/borrowers/:id/update-name', (req, res) => {
     const { displayName, fullName, sectorLabel } = req.body;
-    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
+    if (!isSafeProfileKey(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid borrower id' });
+    }
+    const borrowerId = req.params.id;
+    const profile = profilesStore[borrowerId] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
     }
@@ -311,7 +321,11 @@ async function startServer() {
 
   app.put('/api/borrowers/:id/profile', (req, res) => {
     const { displayName, fullName, sectorLabel } = req.body;
-    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
+    if (!isSafeProfileKey(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid borrower id' });
+    }
+    const borrowerId = req.params.id;
+    const profile = profilesStore[borrowerId] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
     }
@@ -325,7 +339,11 @@ async function startServer() {
 
   // 4c. Real-Time Bank Information API Endpoints
   app.get('/api/bank/config/:id', (req, res) => {
-    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
+    if (!isSafeProfileKey(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid borrower id' });
+    }
+    const borrowerId = req.params.id;
+    const profile = profilesStore[borrowerId] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
     }
