@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles,
@@ -99,7 +99,7 @@ interface CelebrationOverlayProps {
   thresholdCrossed?: number;
 }
 
-export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
+export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = React.memo(({
   isOpen,
   onClose,
   profile,
@@ -111,10 +111,10 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
 
-  const milestone = getMilestoneForScore(newScore);
+  const milestone = useMemo(() => getMilestoneForScore(newScore), [newScore]);
 
   // Multi-burst celebratory confetti launcher
-  const fireCelebratoryConfetti = () => {
+  const fireCelebratoryConfetti = useCallback(() => {
     // Burst 1: Center burst
     confetti({
       particleCount: 70,
@@ -145,10 +145,9 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
         colors: ['#d97706', '#059669', '#fde047', '#123524'],
       });
     }, 400);
-  };
+  }, []);
 
   useEffect(() => {
-    let frameId: number;
     if (isOpen) {
       fireCelebratoryConfetti();
 
@@ -157,6 +156,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
       const end = newScore;
       const duration = 1200;
       const startTime = performance.now();
+      let animFrameId: number;
 
       const updateTicker = (currentTime: number) => {
         const elapsed = currentTime - startTime;
@@ -167,70 +167,71 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
         setDisplayScore(currentVal);
 
         if (progress < 1) {
-          frameId = requestAnimationFrame(updateTicker);
+          animFrameId = requestAnimationFrame(updateTicker);
         } else {
           setDisplayScore(end);
         }
       };
 
-      frameId = requestAnimationFrame(updateTicker);
+      animFrameId = requestAnimationFrame(updateTicker);
+      return () => {
+        if (animFrameId) cancelAnimationFrame(animFrameId);
+      };
     }
-    return () => {
-      if (frameId) cancelAnimationFrame(frameId);
-    };
-  }, [isOpen, newScore, previousScore]);
+  }, [isOpen, newScore, previousScore, fireCelebratoryConfetti]);
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = useCallback(() => {
     setIsDownloading(true);
-    setTimeout(() => {
-      try {
-        generateRiskAndBufferPDF(profile);
-        setDownloadSuccess(true);
-        setTimeout(() => setDownloadSuccess(false), 3500);
-      } catch (e) {
-        console.error('PDF error:', e);
-      } finally {
-        setIsDownloading(false);
-      }
-    }, 50);
-  };
+    try {
+      generateRiskAndBufferPDF(profile);
+      setDownloadSuccess(true);
+      setTimeout(() => setDownloadSuccess(false), 3500);
+    } catch (e) {
+      console.error('PDF error:', e);
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [profile]);
 
   if (!isOpen) return null;
 
   return (
     <AnimatePresence>
       <div
-        onClick={onClose}
-        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto"
+        id="celebration-overlay-backdrop"
+        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto touch-manipulation"
       >
         <motion.div
-          onClick={(e) => e.stopPropagation()}
-          initial={{ opacity: 0, scale: 0.88, y: 30 }}
+          initial={{ opacity: 0, scale: 0.92, y: 30 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           transition={{ type: 'spring', damping: 22, stiffness: 280 }}
-          className="relative w-full max-w-lg bg-[#faf8f2] rounded-3xl border border-[#e8e2d5] shadow-2xl overflow-hidden my-auto"
+          className="relative w-full max-w-lg bg-[#faf8f2] rounded-t-3xl sm:rounded-3xl border-t sm:border border-[#e8e2d5] shadow-2xl overflow-hidden my-0 sm:my-auto max-h-[92vh] overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]"
         >
+          {/* Mobile Drag Pill */}
+          <div className="w-10 h-1.25 bg-white/40 rounded-full mx-auto mt-2 sm:hidden relative z-30" />
+
           {/* Top Decorative Banner */}
-          <div className="bg-gradient-to-r from-[#123524] via-[#1b4332] to-[#123524] text-white p-6 relative overflow-hidden">
+          <div className="bg-gradient-to-r from-[#123524] via-[#1b4332] to-[#123524] text-white p-5 sm:p-6 relative overflow-hidden">
             {/* Background ambient lighting */}
             <div className="absolute -top-10 -right-10 w-44 h-44 bg-[#d97706]/20 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-[#10b981]/25 rounded-full blur-3xl pointer-events-none" />
 
             {/* Close Button */}
             <button
+              id="celebration-close-btn"
               onClick={onClose}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white/80 hover:text-white flex items-center justify-center transition-all z-20"
+              className="absolute top-4 right-4 w-9 h-9 min-w-[36px] min-h-[36px] rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 active:scale-95 text-white/80 hover:text-white flex items-center justify-center transition-all z-20"
               aria-label="Close celebration modal"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4.5 h-4.5" />
             </button>
 
             {/* Top Badge */}
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-2 sm:mb-3">
               <span className="px-3 py-1 bg-amber-400/20 border border-amber-300/30 text-amber-300 text-[10px] font-mono font-bold tracking-wider rounded-full uppercase flex items-center gap-1.5">
                 <Sparkles className="w-3 h-3 text-amber-300" />
-                <span>Resilience Threshold Crossed (≥{thresholdCrossed}%)</span>
+                <span>Resilience Threshold (≥{thresholdCrossed}%)</span>
               </span>
             </div>
 
@@ -243,7 +244,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
             </p>
 
             {/* Big Animated Score Transformation Card */}
-            <div className="mt-5 p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 flex items-center justify-between gap-4">
+            <div className="mt-4 sm:mt-5 p-3.5 sm:p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 flex items-center justify-between gap-3 sm:gap-4">
               <div>
                 <span className="text-[10px] font-mono uppercase tracking-widest text-[#80a98f] block">
                   Resilience Score Upgraded
@@ -349,4 +350,4 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
       </div>
     </AnimatePresence>
   );
-};
+});

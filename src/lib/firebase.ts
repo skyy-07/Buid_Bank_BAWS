@@ -22,57 +22,20 @@ import {
   getDocs,
   serverTimestamp,
 } from 'firebase/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
 import { BorrowerProfile } from '../types';
 
-// Support environment variable overrides for production deployment (#16)
-const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : (process.env || {});
+// Initialize Firebase App
+export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-const defaultFirebaseConfig = {
-  projectId: "boxwood-atom-476404-b5",
-  appId: "1:917898093765:web:b3fb32d82d0c4cf9657cac",
-  apiKey: "AIzaSyD1s2_MLw413Y4XNFel3TjxYDMgU9kXIQw",
-  authDomain: "boxwood-atom-476404-b5.firebaseapp.com",
-  firestoreDatabaseId: "(default)",
-  storageBucket: "boxwood-atom-476404-b5.firebasestorage.app",
-  messagingSenderId: "917898093765",
-};
+// Initialize Firebase Auth
+export const auth = getAuth(app);
 
-const firebaseConfig = {
-  projectId: env.VITE_FIREBASE_PROJECT_ID || env.FIREBASE_PROJECT_ID || defaultFirebaseConfig.projectId,
-  appId: env.VITE_FIREBASE_APP_ID || env.FIREBASE_APP_ID || defaultFirebaseConfig.appId,
-  apiKey: env.VITE_FIREBASE_API_KEY || env.FIREBASE_API_KEY || defaultFirebaseConfig.apiKey,
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || env.FIREBASE_AUTH_DOMAIN || defaultFirebaseConfig.authDomain,
-  firestoreDatabaseId: env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || env.FIREBASE_FIRESTORE_DATABASE_ID || defaultFirebaseConfig.firestoreDatabaseId,
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || env.FIREBASE_STORAGE_BUCKET || defaultFirebaseConfig.storageBucket,
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || env.FIREBASE_MESSAGING_SENDER_ID || defaultFirebaseConfig.messagingSenderId,
-};
+// Initialize Firestore using the configured database ID
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 
-// Safe initialization helpers to prevent unhandled top-level import crashes
-let appInstance: any = null;
-let authInstance: any = null;
-let dbInstance: any = null;
-let googleProviderInstance: any = null;
-
-try {
-  const existingApps = getApps();
-  if (existingApps.length > 0) {
-    appInstance = existingApps[0];
-  } else if (firebaseConfig.apiKey && firebaseConfig.projectId) {
-    appInstance = initializeApp(firebaseConfig);
-  }
-  if (appInstance) {
-    authInstance = getAuth(appInstance);
-    dbInstance = getFirestore(appInstance, firebaseConfig.firestoreDatabaseId || '(default)');
-    googleProviderInstance = new GoogleAuthProvider();
-  }
-} catch (err) {
-  console.warn('[Firebase SDK Notice] Gracefully running in fallback mode:', err);
-}
-
-export const app = appInstance;
-export const auth = authInstance;
-export const db = dbInstance;
-export const googleProvider = googleProviderInstance;
+// Google Auth Provider
+export const googleProvider = new GoogleAuthProvider();
 
 export interface AppUserProfile {
   uid: string;
@@ -104,18 +67,6 @@ export async function registerWithEmailPassword(
   displayName: string,
   role: 'borrower' | 'underwriter' = 'borrower'
 ): Promise<AppUserProfile> {
-  if (!auth) {
-    return {
-      uid: `demo-user-${Date.now()}`,
-      email: email || 'aarti.sharma@baws-agri.in',
-      displayName: displayName || email.split('@')[0] || 'Aarti Sharma',
-      role,
-      linkedBorrowerId: role === 'borrower' ? 'baws-user-aarti-8821' : 'nbfc-officer',
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
-    };
-  }
-
   const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
   const user = userCredential.user;
 
@@ -137,19 +88,27 @@ export async function registerWithEmailPassword(
   };
 
   try {
-    if (db) {
-      const userDocRef = doc(db, 'users', user.uid);
-      await setDoc(userDocRef, {
-        ...profile,
-        serverCreatedAt: serverTimestamp(),
-        serverLastLogin: serverTimestamp(),
-      });
-    }
+    const userDocRef = doc(db, 'users', user.uid);
+    await setDoc(userDocRef, {
+      ...profile,
+      serverCreatedAt: serverTimestamp(),
+      serverLastLogin: serverTimestamp(),
+    });
   } catch (err) {
     console.warn('Firestore doc write skipped or pending permissions:', err);
   }
 
   return profile;
+}
+
+/**
+ * Timeout promise wrapper to prevent Firestore long-polling network hangs
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, fallbackVal: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallbackVal), ms)),
+  ]);
 }
 
 /**
@@ -159,22 +118,10 @@ export async function loginWithEmailPassword(
   email: string,
   pass: string
 ): Promise<AppUserProfile> {
-  if (!auth) {
-    return {
-      uid: 'baws-user-aarti-8821',
-      email: email || 'aarti.sharma@baws-agri.in',
-      displayName: email ? email.split('@')[0] : 'Aarti Sharma',
-      role: 'borrower',
-      linkedBorrowerId: 'baws-user-aarti-8821',
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
-    };
-  }
-
   const userCredential = await signInWithEmailAndPassword(auth, email, pass);
   const user = userCredential.user;
 
-  // Fetch or sync Firestore Profile
+  // Base mapped profile
   let profile: AppUserProfile = {
     uid: user.uid,
     email: user.email || email,
@@ -187,8 +134,8 @@ export async function loginWithEmailPassword(
 
   try {
     const userDocRef = doc(db, 'users', user.uid);
-    const snap = await getDoc(userDocRef);
-    if (snap.exists()) {
+    const snap = await withTimeout(getDoc(userDocRef), 2500, null as any);
+    if (snap && snap.exists()) {
       const data = snap.data();
       profile = {
         ...profile,
@@ -204,13 +151,13 @@ export async function loginWithEmailPassword(
         resilienceScore: data.resilienceScore,
         borrowerData: data.borrowerData,
       };
-      await updateDoc(userDocRef, { serverLastLogin: serverTimestamp() });
-    } else {
-      await setDoc(userDocRef, {
+      updateDoc(userDocRef, { serverLastLogin: serverTimestamp() }).catch(() => {});
+    } else if (snap) {
+      setDoc(userDocRef, {
         ...profile,
         createdAt: new Date().toISOString(),
         serverCreatedAt: serverTimestamp(),
-      });
+      }).catch(() => {});
     }
   } catch (err) {
     console.warn('Firestore profile sync fallback:', err);
@@ -231,7 +178,11 @@ export async function loginOrRegisterWithEmail(
   try {
     return await loginWithEmailPassword(email, pass);
   } catch (err: any) {
-    if (err.code === 'auth/user-not-found') {
+    if (
+      err.code === 'auth/user-not-found' ||
+      err.code === 'auth/invalid-credential' ||
+      err.code === 'auth/wrong-password'
+    ) {
       return await registerWithEmailPassword(email, pass, displayName, role);
     }
     throw err;
@@ -244,18 +195,6 @@ export async function loginOrRegisterWithEmail(
 export async function loginWithGooglePopup(
   role: 'borrower' | 'underwriter' = 'borrower'
 ): Promise<AppUserProfile> {
-  if (!auth) {
-    return {
-      uid: 'google-demo-user',
-      email: 'aarti.sharma@baws-agri.in',
-      displayName: 'Aarti Sharma',
-      photoURL: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
-      role,
-      linkedBorrowerId: 'baws-user-aarti-8821',
-      lastLoginAt: new Date().toISOString(),
-    };
-  }
-
   const result = await signInWithPopup(auth, googleProvider);
   const user = result.user;
 
@@ -346,7 +285,7 @@ export async function getUserComprehensiveData(userId: string): Promise<AppUserP
   if (!userId) return null;
   try {
     const userDocRef = doc(db, 'users', userId);
-    const snap = await getDoc(userDocRef);
+    const snap = await withTimeout(getDoc(userDocRef), 2500, null as any);
     if (snap && snap.exists()) {
       return snap.data() as AppUserProfile;
     }

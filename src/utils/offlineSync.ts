@@ -254,11 +254,24 @@ function updateCacheMetadata(): void {
  */
 export function registerOfflineServiceWorker(): void {
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    // Only register in top-level window or production environment to avoid iframe HMR/dev stream deadlocks
+    const isInIframe = window.self !== window.top;
+    
+    if (isInIframe) {
+      // In preview iframe, unregister any active workers that might intercept Firebase streaming
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister().catch(() => {});
+        }
+      }).catch(() => {});
+      return;
+    }
+
     window.addEventListener('load', () => {
       navigator.serviceWorker
         .register('/sw.js')
         .then((reg) => {
-          console.log('[BAWS ServiceWorker] Registered successfully with scope:', reg.scope);
+          reg.update().catch(() => {});
         })
         .catch((err) => {
           console.warn('[BAWS ServiceWorker] Registration fallback:', err);

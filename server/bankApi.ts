@@ -2,7 +2,6 @@ import { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } fro
 import axios from 'axios';
 import { BankConnectedAccount, BankSyncResult, BankProviderConfig, CashFlowRecord, BorrowerProfile } from '../src/types';
 import { computeTailRiskMetrics, calculateBawsScores, AVAILABLE_SAMPLE_BANKS, SampleBankInstitution } from '../src/utils/bawsEngine';
-import { getToken, setToken, flushToDisk } from './persist';
 
 // Lazy Plaid client initialization
 let plaidClient: PlaidApi | null = null;
@@ -32,6 +31,8 @@ export function getPlaidClient(): PlaidApi | null {
   return plaidClient;
 }
 
+// In-memory store for connected access tokens and session handles
+const userAccessTokens: Record<string, { accessToken: string; itemId: string; provider: 'PLAID' | 'ACCOUNT_AGGREGATOR' }> = {};
 
 /**
  * Check configuration status for all banking providers
@@ -145,12 +146,11 @@ export async function exchangePlaidPublicToken(userId: string, publicToken: stri
   const accessToken = response.data.access_token;
   const itemId = response.data.item_id;
 
-  setToken(userId, {
+  userAccessTokens[userId] = {
     accessToken,
     itemId,
     provider: 'PLAID',
-  });
-  flushToDisk();
+  };
 
   // Fetch accounts immediately
   const accountsResponse = await client.accountsGet({
@@ -257,7 +257,7 @@ export async function syncRealTimeBankData(
   targetBankId?: string
 ): Promise<BankSyncResult> {
   const now = new Date();
-  const tokenData = getToken(userId);
+  const tokenData = userAccessTokens[userId];
   const plaid = getPlaidClient();
 
   let accounts: BankConnectedAccount[] = profile.connectedBankAccounts || [];
@@ -384,7 +384,7 @@ export async function syncRealTimeBankData(
   const liveRecord: CashFlowRecord = {
     periodIndex: profile.cashFlowRecords.length + 1,
     periodDate: todayStr,
-    label: `Bank Sync (${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })})`,
+    label: `Bank Sync (${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
     grossInflow: parsedInflows,
     grossOutflow: parsedOutflows,
     netCashFlow: newNetCash,

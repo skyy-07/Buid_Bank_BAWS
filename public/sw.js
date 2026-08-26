@@ -1,22 +1,22 @@
 // BAWS Offline Service Worker
-// Cache name version
-const CACHE_NAME = 'baws-offline-v1';
+const CACHE_NAME = 'baws-offline-v2';
 
-// Core app shell assets to precache (production build compatible)
+// Critical app shell assets to precache
 const STATIC_ASSETS = [
   '/',
   '/index.html',
+  '/favicon.ico',
 ];
 
-// Install Event: Precaches core shell assets
+// Install Event: Precaches core shell assets safely
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Precaching app shell assets');
       return cache.addAll(STATIC_ASSETS).catch((err) => {
         console.warn('[SW] Precache partial fallback:', err);
       });
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
@@ -27,51 +27,62 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames
           .filter((name) => name !== CACHE_NAME)
-          .map((name) => {
-            console.log('[SW] Clearing old cache:', name);
-            return caches.delete(name);
-          })
+          .map((name) => caches.delete(name))
       );
     }).then(() => self.clients.claim())
   );
 });
 
-// Fetch Event: Network-First with Cache Fallback for API and Stale-While-Revalidate for static assets
+// Fetch Event
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Skip non-GET requests and WebSocket / hot-reload calls
+  // 1. Only intercept GET requests
   if (event.request.method !== 'GET') {
     return;
   }
 
-  // Handle API requests (e.g., /api/borrowers/*, /api/bank/*)
+  // 2. CRITICAL: Never intercept cross-origin requests (Firebase Auth, Firestore, Google APIs, CDNs, etc.)
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // 3. Never intercept Vite dev server, HMR, WebSocket, or streaming connections
+  if (
+    url.pathname.includes('/@vite/') ||
+    url.pathname.includes('/@fs/') ||
+    url.pathname.includes('/__vite') ||
+    url.pathname.includes('node_modules') ||
+    url.pathname.includes('/Listen/channel') ||
+    event.request.headers.get('accept')?.includes('text/event-stream')
+  ) {
+    return;
+  }
+
+  // 4. Handle same-origin API requests (/api/*)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
-          // Clone and cache successful API responses for offline replay
           if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
-            });
+            try {
+              const responseClone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, responseClone).catch(() => {});
+              });
+            } catch {}
           }
           return networkResponse;
         })
         .catch(async () => {
-          // Network failed (device is offline), attempt to return cached API response
           const cachedResponse = await caches.match(event.request);
           if (cachedResponse) {
-            console.log('[SW] Serving cached API response offline for:', url.pathname);
             return cachedResponse;
           }
-
-          // Return graceful JSON offline fallback if nothing in cache
           return new Response(
             JSON.stringify({
               error: 'Offline',
-              message: 'You are currently offline. Displaying local cached profile.',
+              message: 'Operating in offline local cache mode.',
               isOfflineFallback: true,
             }),
             {
@@ -84,15 +95,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle Static Assets & HTML navigation (Network first, fall back to cache)
+  // 5. Handle static assets (Network First with Cache Fallback)
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
+        if (networkResponse && networkResponse.status === 200 && event.request.url.startsWith('http')) {
+          try {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone).catch(() => {});
+            });
+          } catch {}
         }
         return networkResponse;
       })
@@ -101,15 +114,11 @@ self.addEventListener('fetch', (event) => {
         if (cachedResponse) {
           return cachedResponse;
         }
-        // Fallback to root index.html for SPA client navigation
         if (event.request.mode === 'navigate') {
           const indexFallback = await caches.match('/index.html');
           if (indexFallback) return indexFallback;
         }
-        return new Response('Offline: Network connection unavailable', {
-          status: 503,
-          statusText: 'Service Unavailable (Offline)',
-        });
+        return new Response('Offline', { status: 503, statusText: 'Offline' });
       })
   );
 });

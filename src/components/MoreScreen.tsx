@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   FileText,
   ShieldCheck,
@@ -24,10 +24,21 @@ import {
   AlertTriangle,
   Save,
   Check,
+  Pencil,
+  User,
+  Sun,
+  Moon,
+  Contrast,
+  Eye,
+  Type,
+  Activity,
+  Palette,
+  CheckCircle2,
 } from 'lucide-react';
 import { BorrowerProfile, SectorType, BankConnectedAccount, OAuthUser } from '../types';
 import { generateRiskAndBufferPDF } from '../utils/pdfGenerator';
 import { deleteUserProfileAccount, saveUserComprehensiveData } from '../lib/firebase';
+import { useTheme, ThemeMode, FontScale } from '../context/ThemeContext';
 
 interface MoreScreenProps {
   profile: BorrowerProfile;
@@ -37,12 +48,13 @@ interface MoreScreenProps {
   onSimulateScenario: (scenarioType: string, magnitude?: number, description?: string) => Promise<void>;
   onRunGeminiEvaluation: () => Promise<void>;
   onOpenAuthModal?: () => void;
+  onOpenEditName?: () => void;
   onDeleteProfile?: (userId: string) => Promise<void>;
   onSaveProfileToDb?: () => Promise<void>;
   isEvaluatingAI: boolean;
 }
 
-export const MoreScreen: React.FC<MoreScreenProps> = ({
+export const MoreScreen: React.FC<MoreScreenProps> = React.memo(({
   profile,
   availableProfiles,
   currentUser,
@@ -50,26 +62,24 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
   onSimulateScenario,
   onRunGeminiEvaluation,
   onOpenAuthModal,
+  onOpenEditName,
   onDeleteProfile,
   onSaveProfileToDb,
   isEvaluatingAI,
 }) => {
-  const [activeSection, setActiveSection] = useState<'passport' | 'simulator' | 'nbfc' | 'bank' | 'auth' | 'switch'>('passport');
-  const [copiedHash, setCopiedHash] = useState(false);
-  const [isPdfProcessing, setIsPdfProcessing] = useState(false);
+  const {
+    theme,
+    fontScale,
+    reduceMotion,
+    setTheme,
+    setFontScale,
+    setReduceMotion,
+    toggleDarkMode,
+    toggleHighContrast,
+  } = useTheme();
 
-  const handleGeneratePDFAsync = () => {
-    setIsPdfProcessing(true);
-    setTimeout(() => {
-      try {
-        generateRiskAndBufferPDF(profile, currentUser);
-      } catch (err) {
-        console.error('PDF generation error:', err);
-      } finally {
-        setIsPdfProcessing(false);
-      }
-    }, 50);
-  };
+  const [activeSection, setActiveSection] = useState<'passport' | 'theme' | 'simulator' | 'nbfc' | 'bank' | 'auth' | 'switch'>('passport');
+  const [copiedHash, setCopiedHash] = useState(false);
   const [simulatingType, setSimulatingType] = useState<string | null>(null);
   const [isSyncingBank, setIsSyncingBank] = useState(false);
   const [bankSyncMsg, setBankSyncMsg] = useState<string | null>(null);
@@ -84,19 +94,19 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
   const [isDeletingProfile, setIsDeletingProfile] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const handleCopyHash = () => {
+  const handleCopyHash = useCallback(() => {
     navigator.clipboard.writeText(profile.passportHash);
     setCopiedHash(true);
     setTimeout(() => setCopiedHash(false), 2000);
-  };
+  }, [profile.passportHash]);
 
-  const handleRunSimulation = async (type: string, mag?: number, desc?: string) => {
+  const handleRunSimulation = useCallback(async (type: string, mag?: number, desc?: string) => {
     setSimulatingType(type);
     await onSimulateScenario(type, mag, desc);
     setSimulatingType(null);
-  };
+  }, [onSimulateScenario]);
 
-  const handleSyncBankData = async () => {
+  const handleSyncBankData = useCallback(async () => {
     setIsSyncingBank(true);
     setBankSyncMsg(null);
     try {
@@ -114,9 +124,9 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
     } finally {
       setIsSyncingBank(false);
     }
-  };
+  }, [profile.borrowerId]);
 
-  const handleManualSyncDatabase = async () => {
+  const handleManualSyncDatabase = useCallback(async () => {
     if (!currentUser) return;
     setIsSyncingDb(true);
     setDbSyncMsg(null);
@@ -138,9 +148,9 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
     } finally {
       setIsSyncingDb(false);
     }
-  };
+  }, [currentUser, onSaveProfileToDb, profile]);
 
-  const handleConfirmProfileDeletion = async () => {
+  const handleConfirmProfileDeletion = useCallback(async () => {
     if (!currentUser) return;
     setIsDeletingProfile(true);
     setDeleteError(null);
@@ -152,37 +162,41 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
       }
       setShowDeleteModal(false);
     } catch (err: any) {
-      setDeleteError(err.message || 'Failed to delete profile. Please try logging in again.');
+      console.error('Delete profile error:', err);
+      setDeleteError(err.message || 'Failed to delete profile records.');
+    } finally {
       setIsDeletingProfile(false);
     }
-  };
+  }, [currentUser, onDeleteProfile]);
 
-  const bankAccounts = profile.connectedBankAccounts || [
-    {
-      id: 'acc-sbi-1',
-      bankName: 'State Bank of India (Primary Savings)',
-      accountType: 'SAVINGS',
-      mask: '•••• 4821',
-      balanceAvailable: profile.currentLiquidBuffer + 4850,
-      balanceCurrent: profile.currentLiquidBuffer + 4850,
-      currency: 'INR',
-      lastSyncedAt: new Date().toISOString(),
-      provider: 'ACCOUNT_AGGREGATOR',
-      status: 'ACTIVE',
-    },
-    {
-      id: 'acc-hdfc-2',
-      bankName: 'HDFC Mandi Merchant Settlement A/C',
-      accountType: 'CURRENT',
-      mask: '•••• 9104',
-      balanceAvailable: 8400,
-      balanceCurrent: 8400,
-      currency: 'INR',
-      lastSyncedAt: new Date().toISOString(),
-      provider: 'ACCOUNT_AGGREGATOR',
-      status: 'ACTIVE',
-    },
-  ];
+  const bankAccounts = useMemo(() => {
+    return profile.connectedBankAccounts || [
+      {
+        id: 'acc-sbi-1',
+        bankName: 'State Bank of India (Primary Savings)',
+        accountType: 'SAVINGS',
+        mask: '•••• 4821',
+        balanceAvailable: profile.currentLiquidBuffer + 4850,
+        balanceCurrent: profile.currentLiquidBuffer + 4850,
+        currency: 'INR',
+        lastSyncedAt: new Date().toISOString(),
+        provider: 'ACCOUNT_AGGREGATOR',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'acc-hdfc-2',
+        bankName: 'HDFC Mandi Merchant Settlement A/C',
+        accountType: 'CURRENT',
+        mask: '•••• 9104',
+        balanceAvailable: 8400,
+        balanceCurrent: 8400,
+        currency: 'INR',
+        lastSyncedAt: new Date().toISOString(),
+        provider: 'ACCOUNT_AGGREGATOR',
+        status: 'ACTIVE',
+      },
+    ];
+  }, [profile.connectedBankAccounts, profile.currentLiquidBuffer]);
 
   return (
     <div className="space-y-4 pb-24">
@@ -201,44 +215,125 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
         </p>
       </div>
 
+      {/* Quick Theme & Accessibility Bar (Always accessible) */}
+      <div
+        id="quick-theme-toggle-bar"
+        className="p-3 bg-white border border-[#e2dacb] rounded-2xl shadow-2xs space-y-2"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Palette className="w-4 h-4 text-[#123524]" />
+            <span className="text-[12px] font-mono font-bold uppercase text-[#123524]">
+              Display & Lighting Mode
+            </span>
+          </div>
+          <button
+            onClick={() => setActiveSection('theme')}
+            className="text-[11px] font-mono font-semibold text-[#1e543b] hover:underline flex items-center gap-1"
+          >
+            <span>Accessibility Settings</span>
+            <ChevronRight className="w-3 h-3" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+          {/* Light / Natural Mode */}
+          <button
+            id="theme-btn-light"
+            onClick={() => setTheme('light')}
+            className={`py-2 px-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 touch-manipulation border ${
+              theme === 'light'
+                ? 'bg-[#123524] text-white border-[#123524] shadow-xs ring-2 ring-[#123524]/20'
+                : 'bg-[#faf8f2] text-[#4a5c50] border-[#ded5c5] hover:bg-[#ede8dc]'
+            }`}
+            title="Switch to Light Theme"
+          >
+            <Sun className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Light</span>
+          </button>
+
+          {/* Dark Mode */}
+          <button
+            id="theme-btn-dark"
+            onClick={() => setTheme('dark')}
+            className={`py-2 px-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 touch-manipulation border ${
+              theme === 'dark'
+                ? 'bg-[#123524] text-white border-[#123524] shadow-xs ring-2 ring-[#123524]/20'
+                : 'bg-[#faf8f2] text-[#4a5c50] border-[#ded5c5] hover:bg-[#ede8dc]'
+            }`}
+            title="Switch to Dark Mode"
+          >
+            <Moon className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Dark Mode</span>
+          </button>
+
+          {/* High Contrast */}
+          <button
+            id="theme-btn-contrast"
+            onClick={() => setTheme('contrast')}
+            className={`py-2 px-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 touch-manipulation border ${
+              theme === 'contrast'
+                ? 'bg-[#123524] text-white border-[#123524] shadow-xs ring-2 ring-[#123524]/20'
+                : 'bg-[#faf8f2] text-[#4a5c50] border-[#ded5c5] hover:bg-[#ede8dc]'
+            }`}
+            title="Switch to High Contrast Mode"
+          >
+            <Contrast className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">High Contrast</span>
+          </button>
+        </div>
+      </div>
+
       {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-1.5 p-1 bg-white border border-[#e2dacb] rounded-2xl overflow-x-auto shadow-2xs">
+      <div className="flex items-center gap-1.5 p-1 bg-white border border-[#e2dacb] rounded-2xl overflow-x-auto no-scrollbar shadow-2xs">
         <button
           onClick={() => setActiveSection('passport')}
-          className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all shrink-0 ${
+          className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap transition-all touch-manipulation active:scale-95 shrink-0 ${
             activeSection === 'passport'
               ? 'bg-[#123524] text-white shadow-xs'
-              : 'text-[#4a5c50] hover:text-[#123524]'
+              : 'text-[#4a5c50] hover:text-[#123524] active:bg-[#f4efe4]'
           }`}
         >
           Risk Passport
         </button>
         <button
+          id="tab-theme-accessibility"
+          onClick={() => setActiveSection('theme')}
+          className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap transition-all touch-manipulation active:scale-95 shrink-0 flex items-center gap-1.5 ${
+            activeSection === 'theme'
+              ? 'bg-[#123524] text-white shadow-xs'
+              : 'text-[#4a5c50] hover:text-[#123524] active:bg-[#f4efe4]'
+          }`}
+        >
+          <Eye className="w-3.5 h-3.5" />
+          <span>Themes & Access</span>
+        </button>
+        <button
           onClick={() => setActiveSection('simulator')}
-          className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all shrink-0 ${
+          className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap transition-all touch-manipulation active:scale-95 shrink-0 ${
             activeSection === 'simulator'
               ? 'bg-[#123524] text-white shadow-xs'
-              : 'text-[#4a5c50] hover:text-[#123524]'
+              : 'text-[#4a5c50] hover:text-[#123524] active:bg-[#f4efe4]'
           }`}
         >
           Shock Simulator
         </button>
         <button
           onClick={() => setActiveSection('nbfc')}
-          className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all shrink-0 ${
+          className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap transition-all touch-manipulation active:scale-95 shrink-0 ${
             activeSection === 'nbfc'
               ? 'bg-[#123524] text-white shadow-xs'
-              : 'text-[#4a5c50] hover:text-[#123524]'
+              : 'text-[#4a5c50] hover:text-[#123524] active:bg-[#f4efe4]'
           }`}
         >
           NBFC Math Desk
         </button>
         <button
           onClick={() => setActiveSection('bank')}
-          className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all shrink-0 flex items-center gap-1 ${
+          className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap transition-all touch-manipulation active:scale-95 shrink-0 flex items-center gap-1.5 ${
             activeSection === 'bank'
               ? 'bg-[#123524] text-white shadow-xs'
-              : 'text-[#4a5c50] hover:text-[#123524]'
+              : 'text-[#4a5c50] hover:text-[#123524] active:bg-[#f4efe4]'
           }`}
         >
           <Building2 className="w-3.5 h-3.5" />
@@ -246,10 +341,10 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
         </button>
         <button
           onClick={() => setActiveSection('auth')}
-          className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all shrink-0 flex items-center gap-1 ${
+          className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap transition-all touch-manipulation active:scale-95 shrink-0 flex items-center gap-1.5 ${
             activeSection === 'auth'
               ? 'bg-[#123524] text-white shadow-xs'
-              : 'text-[#4a5c50] hover:text-[#123524]'
+              : 'text-[#4a5c50] hover:text-[#123524] active:bg-[#f4efe4]'
           }`}
         >
           <Database className="w-3.5 h-3.5" />
@@ -257,15 +352,405 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
         </button>
         <button
           onClick={() => setActiveSection('switch')}
-          className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all shrink-0 ${
+          className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap transition-all touch-manipulation active:scale-95 shrink-0 ${
             activeSection === 'switch'
               ? 'bg-[#123524] text-white shadow-xs'
-              : 'text-[#4a5c50] hover:text-[#123524]'
+              : 'text-[#4a5c50] hover:text-[#123524] active:bg-[#f4efe4]'
           }`}
         >
           Borrowers ({availableProfiles.length})
         </button>
       </div>
+
+      {/* SECTION: DISPLAY, THEME & ACCESSIBILITY */}
+      {activeSection === 'theme' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-3xl p-6 border border-[#e8e2d5] shadow-xs space-y-5">
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[10px] font-mono tracking-widest text-[#6e7f74] uppercase block">
+                  Accessibility & Human Ergonomics
+                </span>
+                <h3 className="font-display text-2xl font-bold text-[#123524] mt-0.5">
+                  Display & Accessibility
+                </h3>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-[#123524] text-[#98d4ad] flex items-center justify-center shadow-xs">
+                <Palette className="w-5 h-5" />
+              </div>
+            </div>
+
+            <p className="text-[13px] text-[#4a5c50] leading-relaxed">
+              Customize visual contrast, dark mode, text scale, and motion preferences to optimize readability across varied field lighting, direct sunlight, and night shifts.
+            </p>
+
+            {/* Theme Selector Cards */}
+            <div className="space-y-3 pt-1">
+              <span className="text-[11px] font-mono uppercase font-bold text-[#123524] block">
+                Visual Theme Modes
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. Light Mode Card */}
+                <button
+                  id="card-select-theme-light"
+                  onClick={() => setTheme('light')}
+                  className={`text-left p-4 rounded-2xl border transition-all active:scale-98 touch-manipulation relative flex flex-col justify-between ${
+                    theme === 'light'
+                      ? 'bg-[#f7f5ee] border-[#123524] ring-2 ring-[#123524]/25 shadow-xs'
+                      : 'bg-[#faf8f2] border-[#ded5c5] hover:bg-[#ede8dc]'
+                  }`}
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="w-8 h-8 rounded-lg bg-[#123524] text-white flex items-center justify-center">
+                        <Sun className="w-4 h-4 text-[#faebd7]" />
+                      </div>
+                      {theme === 'light' && (
+                        <span className="px-2 py-0.5 rounded-full bg-[#123524] text-white text-[10px] font-mono font-bold flex items-center gap-1">
+                          <Check className="w-2.5 h-2.5" />
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-display font-bold text-[#123524] text-base">
+                        Natural Paper
+                      </h4>
+                      <p className="text-[11px] text-[#55695c] mt-0.5 leading-snug">
+                        Warm organic palette with forest accents.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Swatches preview */}
+                  <div className="flex items-center gap-1 pt-3">
+                    <span className="w-4 h-4 rounded-full bg-[#f7f5ee] border border-[#d6cbba]" title="#f7f5ee" />
+                    <span className="w-4 h-4 rounded-full bg-[#123524]" title="#123524" />
+                    <span className="w-4 h-4 rounded-full bg-[#80a98f]" title="#80a98f" />
+                    <span className="text-[10px] font-mono text-[#6e7f74] ml-auto">Indoor Daylight</span>
+                  </div>
+                </button>
+
+                {/* 2. Dark Mode Card */}
+                <button
+                  id="card-select-theme-dark"
+                  onClick={() => setTheme('dark')}
+                  className={`text-left p-4 rounded-2xl border transition-all active:scale-98 touch-manipulation relative flex flex-col justify-between ${
+                    theme === 'dark'
+                      ? 'bg-[#15221b] text-white border-[#4ade80] ring-2 ring-[#4ade80]/30 shadow-xs'
+                      : 'bg-[#1a2820] text-[#c4d6cb] border-[#2d4739] hover:bg-[#203228]'
+                  }`}
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="w-8 h-8 rounded-lg bg-[#24382c] text-[#98d4ad] flex items-center justify-center border border-[#3d5a49]">
+                        <Moon className="w-4 h-4" />
+                      </div>
+                      {theme === 'dark' && (
+                        <span className="px-2 py-0.5 rounded-full bg-[#4ade80] text-[#0d1410] text-[10px] font-mono font-bold flex items-center gap-1">
+                          <Check className="w-2.5 h-2.5" />
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-display font-bold text-white text-base">
+                        Dark Mode
+                      </h4>
+                      <p className="text-[11px] text-[#a1b8ac] mt-0.5 leading-snug">
+                        Deep OLED slate-forest for night reading.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Swatches preview */}
+                  <div className="flex items-center gap-1 pt-3">
+                    <span className="w-4 h-4 rounded-full bg-[#0b120e] border border-[#263d31]" title="#0b120e" />
+                    <span className="w-4 h-4 rounded-full bg-[#182820] border border-[#263d31]" title="#182820" />
+                    <span className="w-4 h-4 rounded-full bg-[#4ade80]" title="#4ade80" />
+                    <span className="text-[10px] font-mono text-[#8fa89b] ml-auto">Night / Low-Light</span>
+                  </div>
+                </button>
+
+                {/* 3. High Contrast Card */}
+                <button
+                  id="card-select-theme-contrast"
+                  onClick={() => setTheme('contrast')}
+                  className={`text-left p-4 rounded-2xl border-2 transition-all active:scale-98 touch-manipulation relative flex flex-col justify-between ${
+                    theme === 'contrast'
+                      ? 'bg-white text-black border-black ring-2 ring-black/40 shadow-md'
+                      : 'bg-white text-black border-black/70 hover:border-black'
+                  }`}
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="w-8 h-8 rounded-lg bg-black text-white flex items-center justify-center">
+                        <Contrast className="w-4 h-4" />
+                      </div>
+                      {theme === 'contrast' && (
+                        <span className="px-2 py-0.5 rounded-full bg-black text-white text-[10px] font-mono font-bold flex items-center gap-1">
+                          <Check className="w-2.5 h-2.5" />
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-display font-bold text-black text-base">
+                        High Contrast
+                      </h4>
+                      <p className="text-[11px] text-neutral-800 mt-0.5 leading-snug font-medium">
+                        Pure bold borders & WCAG AAA 15+:1 text.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Swatches preview */}
+                  <div className="flex items-center gap-1 pt-3">
+                    <span className="w-4 h-4 rounded-full bg-white border-2 border-black" title="Pure White" />
+                    <span className="w-4 h-4 rounded-full bg-black border border-white" title="Pure Black" />
+                    <span className="w-4 h-4 rounded-full bg-[#f59e0b] border border-black" title="High-Viz Amber" />
+                    <span className="text-[10px] font-mono font-bold text-black ml-auto">Direct Sunlight</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Toggle Controls Grid */}
+            <div className="p-4 bg-[#faf8f2] rounded-2xl border border-[#eee7da] space-y-4">
+              <span className="text-[11px] font-mono uppercase font-bold text-[#123524] block">
+                Accessibility Toggles
+              </span>
+
+              {/* Toggle 1: Dark Mode */}
+              <div className="flex items-center justify-between pb-3 border-b border-[#e5ded0]">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-white border border-[#d6cbba] flex items-center justify-center text-[#123524]">
+                    <Moon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-xs text-[#123524]">Dark Mode</div>
+                    <div className="text-[11px] text-[#6e7f74]">
+                      Invert bright surfaces to reduce glare and preserve eye health
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  id="toggle-switch-dark-mode"
+                  type="button"
+                  role="switch"
+                  aria-checked={theme === 'dark'}
+                  onClick={toggleDarkMode}
+                  className={`w-12 h-7 rounded-full transition-colors relative p-0.5 shrink-0 focus:outline-hidden ${
+                    theme === 'dark' ? 'bg-[#15803d]' : 'bg-[#d6cbba]'
+                  }`}
+                >
+                  <span
+                    className={`block w-6 h-6 rounded-full bg-white shadow-xs transition-transform duration-200 ${
+                      theme === 'dark' ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Toggle 2: High Contrast Mode */}
+              <div className="flex items-center justify-between pb-3 border-b border-[#e5ded0]">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-white border border-[#d6cbba] flex items-center justify-center text-[#123524]">
+                    <Contrast className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-xs text-[#123524] flex items-center gap-1.5">
+                      <span>High Contrast Mode</span>
+                      <span className="px-1.5 py-0.2 rounded-md bg-[#e3f0e8] text-[#15803d] text-[9px] font-mono font-bold">
+                        WCAG AAA
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[#6e7f74]">
+                      Sharpen borders and maximize text contrast for bright sunlight
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  id="toggle-switch-high-contrast"
+                  type="button"
+                  role="switch"
+                  aria-checked={theme === 'contrast'}
+                  onClick={toggleHighContrast}
+                  className={`w-12 h-7 rounded-full transition-colors relative p-0.5 shrink-0 focus:outline-hidden ${
+                    theme === 'contrast' ? 'bg-[#123524]' : 'bg-[#d6cbba]'
+                  }`}
+                >
+                  <span
+                    className={`block w-6 h-6 rounded-full bg-white shadow-xs transition-transform duration-200 ${
+                      theme === 'contrast' ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Text Size Scale Control */}
+              <div className="space-y-2 pb-3 border-b border-[#e5ded0]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Type className="w-4 h-4 text-[#123524]" />
+                    <span className="text-xs font-semibold text-[#123524]">
+                      Text Size Scaling
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-[#6e7f74]">
+                    {fontScale === 'normal' ? '100% (Standard)' : fontScale === 'large' ? '110% (Large)' : '122% (Extra Large)'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setFontScale('normal')}
+                    className={`py-2 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${
+                      fontScale === 'normal'
+                        ? 'bg-[#123524] text-white border-[#123524]'
+                        : 'bg-white text-[#4a5c50] border-[#d6cbba] hover:bg-[#ede8dc]'
+                    }`}
+                  >
+                    100% Standard
+                  </button>
+                  <button
+                    onClick={() => setFontScale('large')}
+                    className={`py-2 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${
+                      fontScale === 'large'
+                        ? 'bg-[#123524] text-white border-[#123524]'
+                        : 'bg-white text-[#4a5c50] border-[#d6cbba] hover:bg-[#ede8dc]'
+                    }`}
+                  >
+                    110% Large
+                  </button>
+                  <button
+                    onClick={() => setFontScale('xlarge')}
+                    className={`py-2 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${
+                      fontScale === 'xlarge'
+                        ? 'bg-[#123524] text-white border-[#123524]'
+                        : 'bg-white text-[#4a5c50] border-[#d6cbba] hover:bg-[#ede8dc]'
+                    }`}
+                  >
+                    122% XL
+                  </button>
+                </div>
+              </div>
+
+              {/* Toggle 3: Reduced Motion */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-white border border-[#d6cbba] flex items-center justify-center text-[#123524]">
+                    <Activity className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-xs text-[#123524]">Reduce Motion</div>
+                    <div className="text-[11px] text-[#6e7f74]">
+                      Disable animated sliding transitions for vestibular comfort
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  id="toggle-switch-reduce-motion"
+                  type="button"
+                  role="switch"
+                  aria-checked={reduceMotion}
+                  onClick={() => setReduceMotion(!reduceMotion)}
+                  className={`w-12 h-7 rounded-full transition-colors relative p-0.5 shrink-0 focus:outline-hidden ${
+                    reduceMotion ? 'bg-[#123524]' : 'bg-[#d6cbba]'
+                  }`}
+                >
+                  <span
+                    className={`block w-6 h-6 rounded-full bg-white shadow-xs transition-transform duration-200 ${
+                      reduceMotion ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* Live Interactive Readability Inspector Card */}
+            <div className="p-4 rounded-2xl bg-[#f0f7f2] border border-[#cfe6d6] space-y-2 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-[#1e543b] uppercase tracking-wider">
+                  <Sparkles className="w-3.5 h-3.5 text-[#15803d]" />
+                  <span>Live Ergonomic & Contrast Inspector</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-[#15803d] text-white text-[10px] font-mono font-bold">
+                  {theme === 'contrast' ? 'AAA Pass (16.2:1)' : theme === 'dark' ? 'AA Pass (11.4:1)' : 'AA Pass (8.7:1)'}
+                </span>
+              </div>
+
+              <div className="pt-1">
+                <div className="text-base font-bold text-[#123524] font-display">
+                  Adaptive Liquidity Buffer: ₹{profile.currentLiquidBuffer.toLocaleString('en-IN')}
+                </div>
+                <div className="text-xs text-[#4a5c50] mt-0.5">
+                  Dynamic Lookback Window $k_t = {profile.currentLookbackK}$ Periods | VaR 90%: ₹{Math.round(profile.scoringProfile.tailVaR90).toLocaleString('en-IN')}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold">
+                  ● Optimal Resilience ({profile.scoringProfile.resilienceScore}%)
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 text-[10px] font-mono font-bold">
+                  ★ Trust Score ({profile.scoringProfile.trustScore}/850)
+                </span>
+              </div>
+            </div>
+
+            {/* Field Condition Recommendations */}
+            <div className="space-y-2 pt-1">
+              <span className="text-[10px] font-mono uppercase font-bold text-[#6e7f74] block">
+                Recommended Presets by Environment:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTheme('contrast');
+                    setFontScale('large');
+                  }}
+                  className="p-2.5 rounded-xl bg-[#faf8f2] border border-[#e5ded0] text-left hover:bg-[#ede8dc] transition-all"
+                >
+                  <div className="text-xs font-bold text-[#123524]">🌾 Mandi / Outdoor Noon</div>
+                  <div className="text-[10px] text-[#6e7f74]">High Contrast + Large Font</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTheme('dark');
+                    setReduceMotion(true);
+                  }}
+                  className="p-2.5 rounded-xl bg-[#faf8f2] border border-[#e5ded0] text-left hover:bg-[#ede8dc] transition-all"
+                >
+                  <div className="text-xs font-bold text-[#123524]">🌙 Night Shift / Field Travel</div>
+                  <div className="text-[10px] text-[#6e7f74]">Dark Mode + Reduced Motion</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTheme('light');
+                    setFontScale('normal');
+                    setReduceMotion(false);
+                  }}
+                  className="p-2.5 rounded-xl bg-[#faf8f2] border border-[#e5ded0] text-left hover:bg-[#ede8dc] transition-all"
+                >
+                  <div className="text-xs font-bold text-[#123524]">☀️ Standard Studio</div>
+                  <div className="text-[10px] text-[#6e7f74]">Natural Paper + Regular Font</div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SECTION 1: VERIFIABLE BAWS RISK PASSPORT */}
       {activeSection === 'passport' && (
@@ -296,7 +781,19 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
             <div className="bg-[#faf8f2] rounded-2xl p-4 border border-[#eee7da] space-y-3">
               <div className="flex justify-between items-center text-[13px]">
                 <span className="text-[#6e7f74]">Borrower:</span>
-                <span className="font-bold text-[#123524]">{profile.fullName}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-[#123524]">{profile.fullName}</span>
+                  {onOpenEditName && (
+                    <button
+                      onClick={onOpenEditName}
+                      className="px-2 py-0.5 rounded-md bg-[#eadecb] hover:bg-[#ded1bd] text-[#123524] text-[11px] font-semibold flex items-center gap-1 transition-colors active:scale-95"
+                      title="Edit borrower name"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      <span>Edit</span>
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex justify-between items-center text-[13px]">
                 <span className="text-[#6e7f74]">Sector & Cadence:</span>
@@ -371,12 +868,11 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
             {/* Official PDF Certificate & Buffer Audit Download Button */}
             <div className="pt-2">
               <button
-                onClick={handleGeneratePDFAsync}
-                disabled={isPdfProcessing}
-                className="w-full py-3 bg-[#123524] hover:bg-[#1a4a33] active:scale-99 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50"
+                onClick={() => generateRiskAndBufferPDF(profile, currentUser)}
+                className="w-full py-3 bg-[#123524] hover:bg-[#1a4a33] active:scale-99 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-md"
               >
                 <FileDown className="w-4 h-4 text-[#98d4ad]" />
-                <span>{isPdfProcessing ? 'Building PDF Report...' : 'Download Official PDF Risk & Buffer Report'}</span>
+                <span>Download Official PDF Risk & Buffer Report</span>
               </button>
             </div>
           </div>
@@ -456,7 +952,7 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
                 </p>
               </button>
 
-              {/* Scenario 3: Live Risk Evaluation */}
+              {/* Scenario 3: Live Gemini AI Risk Evaluation */}
               <button
                 onClick={onRunGeminiEvaluation}
                 disabled={isEvaluatingAI}
@@ -466,15 +962,15 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
                   <Sparkles className="w-5 h-5 text-[#98d4ad] animate-pulse" />
                   <div className="text-left">
                     <div className="font-semibold text-[14px]">
-                      {isEvaluatingAI ? 'Evaluating Cash Flow Risk...' : 'Run Adaptive Risk & Underwriting Engine'}
+                      {isEvaluatingAI ? 'Invoking Gemini AI Risk Engine...' : 'Run Gemini AI Underwriting Engine'}
                     </div>
                     <div className="text-[11px] text-[#9fc4ad]">
-                      Dispatches time series cash-flow data to the risk engine for tail risk evaluation
+                      Dispatches structured JSON time series to Gemini 3.7 Flash for joint tail risk
                     </div>
                   </div>
                 </div>
                 <span className="text-[12px] font-mono font-bold text-[#98d4ad]">
-                  Run Engine →
+                  Live AI →
                 </span>
               </button>
 
@@ -552,12 +1048,11 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
 
             {/* NBFC PDF Export */}
             <button
-              onClick={handleGeneratePDFAsync}
-              disabled={isPdfProcessing}
-              className="w-full py-2.5 bg-[#f4efe4] hover:bg-[#eae3d2] text-[#123524] font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-all border border-[#e5ded0] disabled:opacity-50"
+              onClick={() => generateRiskAndBufferPDF(profile, currentUser)}
+              className="w-full py-2.5 bg-[#f4efe4] hover:bg-[#eae3d2] text-[#123524] font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-all border border-[#e5ded0]"
             >
               <FileDown className="w-4 h-4 text-[#123524]" />
-              <span>{isPdfProcessing ? 'Building PDF Report...' : 'Export Institutional Risk Assessment (PDF)'}</span>
+              <span>Export Institutional Risk Assessment (PDF)</span>
             </button>
           </div>
         </div>
@@ -984,4 +1479,4 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
       )}
     </div>
   );
-};
+});

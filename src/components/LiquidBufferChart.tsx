@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { Sparkles, TrendingUp, ShieldCheck, Flame, Info, CheckCircle2, ChevronRight } from 'lucide-react';
-import { BufferHistoryPoint, BorrowerProfile } from '../types';
+import { BufferHistoryPoint } from '../types';
 
 interface LiquidBufferChartProps {
   history?: BufferHistoryPoint[];
@@ -10,19 +10,18 @@ interface LiquidBufferChartProps {
   onSweepMore?: () => void;
 }
 
-export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = ({
+export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = React.memo(({
   history,
   currentBuffer,
   currencySymbol = '₹',
   onSweepMore,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
   const [dimensions, setDimensions] = useState({ width: 340, height: 210 });
   const [hoveredPoint, setHoveredPoint] = useState<BufferHistoryPoint | null>(null);
   const [activeView, setActiveView] = useState<'all' | 'sweeps' | 'growth'>('all');
 
-  // Fallback data if none provided
+  // Fallback dataset if none provided
   const data: BufferHistoryPoint[] = useMemo(() => {
     if (history && history.length > 0) return history;
     return [
@@ -35,16 +34,19 @@ export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = ({
     ];
   }, [history, currentBuffer]);
 
-  // Track responsive container width
+  // Safe responsive container width tracking with threshold guard
   useEffect(() => {
     if (!containerRef.current) return;
     const observer = new ResizeObserver((entries) => {
       if (!entries || entries.length === 0) return;
-      const { width } = entries[0].contentRect;
-      if (width > 0) {
-        setDimensions({
-          width,
-          height: Math.max(190, Math.min(230, width * 0.58)),
+      const entryWidth = entries[0].contentRect.width;
+      if (entryWidth > 40) {
+        setDimensions((prev) => {
+          if (Math.abs(prev.width - entryWidth) < 3) return prev;
+          return {
+            width: entryWidth,
+            height: Math.max(190, Math.min(230, entryWidth * 0.58)),
+          };
         });
       }
     });
@@ -53,31 +55,29 @@ export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // Compute key milestone and growth figures
   const initialPoint = data[0];
   const latestPoint = data[data.length - 1];
-  const totalGrowthPercent = initialPoint && latestPoint
-    ? Math.round(((latestPoint.totalBuffer - initialPoint.totalBuffer) / (initialPoint.totalBuffer || 1)) * 100)
-    : 195;
-  const sweepSharePercent = latestPoint
-    ? Math.round((latestPoint.microSavingsSweep / (latestPoint.totalBuffer || 1)) * 100)
-    : 31;
+  const activePoint = hoveredPoint || latestPoint;
 
-  // Render D3 chart
-  useEffect(() => {
-    if (!svgRef.current || data.length === 0) return;
+  const totalGrowthPercent = useMemo(() => {
+    return initialPoint && latestPoint
+      ? Math.round(((latestPoint.totalBuffer - initialPoint.totalBuffer) / (initialPoint.totalBuffer || 1)) * 100)
+      : 195;
+  }, [initialPoint, latestPoint]);
 
-    const svg = d3.select(svgRef.current);
-    svg.selectAll('*').remove();
+  const sweepSharePercent = useMemo(() => {
+    return latestPoint
+      ? Math.round((latestPoint.microSavingsSweep / (latestPoint.totalBuffer || 1)) * 100)
+      : 31;
+  }, [latestPoint]);
 
+  // Pure mathematical scales computation (no DOM mutation)
+  const chartMath = useMemo(() => {
     const { width, height } = dimensions;
-    const margin = { top: 22, right: 18, bottom: 28, left: 38 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
+    const margin = { top: 22, right: 18, bottom: 28, left: 40 };
+    const innerWidth = Math.max(10, width - margin.left - margin.right);
+    const innerHeight = Math.max(10, height - margin.top - margin.bottom);
 
-    if (innerWidth <= 0 || innerHeight <= 0) return;
-
-    // Scales
     const xScale = d3
       .scalePoint<string>()
       .domain(data.map((d) => d.shortMonth))
@@ -91,134 +91,6 @@ export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = ({
       .nice()
       .range([height - margin.bottom, margin.top]);
 
-    // Definitions (Gradients & Filters)
-    const defs = svg.append('defs');
-
-    // Total Buffer Gradient (Forest Green)
-    const bufferGradient = defs
-      .append('linearGradient')
-      .attr('id', 'totalBufferGradient')
-      .attr('x1', '0%')
-      .attr('y1', '0%')
-      .attr('x2', '0%')
-      .attr('y2', '100%');
-
-    bufferGradient
-      .append('stop')
-      .attr('offset', '0%')
-      .attr('stop-color', '#123524')
-      .attr('stop-opacity', 0.22);
-
-    bufferGradient
-      .append('stop')
-      .attr('offset', '100%')
-      .attr('stop-color', '#123524')
-      .attr('stop-opacity', 0.01);
-
-    // Micro-Savings Sweep Gradient (Warm Amber / Gold)
-    const sweepGradient = defs
-      .append('linearGradient')
-      .attr('id', 'sweepGradient')
-      .attr('x1', '0%')
-      .attr('y1', '0%')
-      .attr('x2', '0%')
-      .attr('y2', '100%');
-
-    sweepGradient
-      .append('stop')
-      .attr('offset', '0%')
-      .attr('stop-color', '#d97706')
-      .attr('stop-opacity', 0.35);
-
-    sweepGradient
-      .append('stop')
-      .attr('offset', '100%')
-      .attr('stop-color', '#f59e0b')
-      .attr('stop-opacity', 0.02);
-
-    // Glow filter for interactive highlight
-    const filter = defs.append('filter').attr('id', 'glow').attr('x', '-20%').attr('y', '-20%').attr('width', '140%').attr('height', '140%');
-    filter.append('feGaussianBlur').attr('stdDeviation', '2.5').attr('result', 'blur');
-    filter.append('feComposite').attr('in', 'SourceGraphic').attr('in2', 'blur').attr('operator', 'over');
-
-    // 1. Grid Lines
-    const yTicks = yScale.ticks(4);
-    svg
-      .append('g')
-      .attr('class', 'grid-lines')
-      .selectAll('line')
-      .data(yTicks)
-      .enter()
-      .append('line')
-      .attr('x1', margin.left)
-      .attr('x2', width - margin.right)
-      .attr('y1', (d) => yScale(d))
-      .attr('y2', (d) => yScale(d))
-      .attr('stroke', '#ede8dc')
-      .attr('stroke-dasharray', '3,3')
-      .attr('stroke-width', 1);
-
-    // 2. Y-Axis Ticks (compact format e.g. 5k, 10k, 15k)
-    svg
-      .append('g')
-      .attr('class', 'y-axis-labels')
-      .selectAll('text')
-      .data(yTicks)
-      .enter()
-      .append('text')
-      .attr('x', margin.left - 6)
-      .attr('y', (d) => yScale(d) + 3.5)
-      .attr('text-anchor', 'end')
-      .attr('font-size', '10px')
-      .attr('font-family', 'ui-monospace, SFMono-Regular, monospace')
-      .attr('fill', '#8c9c91')
-      .text((d) => (d === 0 ? '₹0' : `₹${d / 1000}k`));
-
-    // 3. X-Axis Month Labels
-    svg
-      .append('g')
-      .attr('class', 'x-axis-labels')
-      .selectAll('text')
-      .data(data)
-      .enter()
-      .append('text')
-      .attr('x', (d) => xScale(d.shortMonth) || 0)
-      .attr('y', height - 8)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', '11px')
-      .attr('font-family', 'ui-monospace, SFMono-Regular, monospace')
-      .attr('font-weight', (d) => (d.shortMonth === latestPoint.shortMonth ? '700' : '500'))
-      .attr('fill', (d) => (d.shortMonth === latestPoint.shortMonth ? '#123524' : '#6b7d72'))
-      .text((d) => d.shortMonth);
-
-    // 4. Milestone Target Reference Line (₹15,000 target)
-    const targetVal = latestPoint?.milestoneTarget || 15000;
-    const targetY = yScale(targetVal);
-    if (targetY >= margin.top && targetY <= height - margin.bottom) {
-      svg
-        .append('line')
-        .attr('x1', margin.left)
-        .attr('x2', width - margin.right)
-        .attr('y1', targetY)
-        .attr('y2', targetY)
-        .attr('stroke', '#a7c4b2')
-        .attr('stroke-dasharray', '4,4')
-        .attr('stroke-width', 1.2)
-        .attr('opacity', 0.8);
-
-      svg
-        .append('text')
-        .attr('x', width - margin.right - 2)
-        .attr('y', targetY - 4)
-        .attr('text-anchor', 'end')
-        .attr('font-size', '9px')
-        .attr('font-family', 'ui-monospace, monospace')
-        .attr('font-weight', '600')
-        .attr('fill', '#5a826b')
-        .text('Target Cushion (₹15k)');
-    }
-
-    // 5. Area Generators
     const totalAreaGenerator = d3
       .area<BufferHistoryPoint>()
       .x((d) => xScale(d.shortMonth) || 0)
@@ -233,7 +105,6 @@ export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = ({
       .y1((d) => yScale(d.microSavingsSweep))
       .curve(d3.curveMonotoneX);
 
-    // 6. Line Generators
     const totalLineGenerator = d3
       .line<BufferHistoryPoint>()
       .x((d) => xScale(d.shortMonth) || 0)
@@ -246,113 +117,29 @@ export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = ({
       .y((d) => yScale(d.microSavingsSweep))
       .curve(d3.curveMonotoneX);
 
-    // Render Total Buffer Area & Line
-    if (activeView === 'all' || activeView === 'growth') {
-      svg
-        .append('path')
-        .datum(data)
-        .attr('fill', 'url(#totalBufferGradient)')
-        .attr('d', totalAreaGenerator);
+    const yTicks = yScale.ticks(4);
+    const totalAreaD = totalAreaGenerator(data) || '';
+    const sweepAreaD = sweepAreaGenerator(data) || '';
+    const totalLineD = totalLineGenerator(data) || '';
+    const sweepLineD = sweepLineGenerator(data) || '';
 
-      svg
-        .append('path')
-        .datum(data)
-        .attr('fill', 'none')
-        .attr('stroke', '#123524')
-        .attr('stroke-width', 2.8)
-        .attr('stroke-linecap', 'round')
-        .attr('stroke-linejoin', 'round')
-        .attr('d', totalLineGenerator);
-    }
+    const targetVal = latestPoint?.milestoneTarget || 15000;
+    const targetY = yScale(targetVal);
 
-    // Render Micro-Savings Sweep Area & Line (Highlighting in vibrant Amber)
-    if (activeView === 'all' || activeView === 'sweeps') {
-      svg
-        .append('path')
-        .datum(data)
-        .attr('fill', 'url(#sweepGradient)')
-        .attr('d', sweepAreaGenerator);
-
-      svg
-        .append('path')
-        .datum(data)
-        .attr('fill', 'none')
-        .attr('stroke', '#d97706')
-        .attr('stroke-width', 2.4)
-        .attr('stroke-linecap', 'round')
-        .attr('stroke-linejoin', 'round')
-        .attr('d', sweepLineGenerator);
-    }
-
-    // 7. Interactive Hover Guide Overlay & Dots
-    data.forEach((d) => {
-      const cx = xScale(d.shortMonth) || 0;
-      const cyTotal = yScale(d.totalBuffer);
-      const cySweep = yScale(d.microSavingsSweep);
-
-      // Micro-savings node circle (Amber)
-      if (activeView === 'all' || activeView === 'sweeps') {
-        svg
-          .append('circle')
-          .attr('cx', cx)
-          .attr('cy', cySweep)
-          .attr('r', hoveredPoint?.shortMonth === d.shortMonth ? 5.5 : 3.5)
-          .attr('fill', '#d97706')
-          .attr('stroke', '#ffffff')
-          .attr('stroke-width', 1.8)
-          .attr('filter', hoveredPoint?.shortMonth === d.shortMonth ? 'url(#glow)' : null)
-          .style('transition', 'all 0.15s ease');
-      }
-
-      // Total Buffer node circle (Forest Green)
-      if (activeView === 'all' || activeView === 'growth') {
-        svg
-          .append('circle')
-          .attr('cx', cx)
-          .attr('cy', cyTotal)
-          .attr('r', hoveredPoint?.shortMonth === d.shortMonth ? 6 : 4)
-          .attr('fill', '#123524')
-          .attr('stroke', '#ffffff')
-          .attr('stroke-width', 2)
-          .attr('filter', hoveredPoint?.shortMonth === d.shortMonth ? 'url(#glow)' : null)
-          .style('transition', 'all 0.15s ease');
-      }
-    });
-
-    // 8. Invisible interactive rects over each column for smooth touch/mouse hover
-    data.forEach((d, i) => {
-      const cx = xScale(d.shortMonth) || 0;
-      const colWidth = innerWidth / data.length;
-
-      svg
-        .append('rect')
-        .attr('x', cx - colWidth / 2)
-        .attr('y', margin.top)
-        .attr('width', colWidth)
-        .attr('height', innerHeight)
-        .attr('fill', 'transparent')
-        .style('cursor', 'pointer')
-        .on('mouseenter', () => setHoveredPoint(d))
-        .on('touchstart', () => setHoveredPoint(d));
-    });
-
-    // Highlight vertical guide if a point is hovered
-    if (hoveredPoint) {
-      const hx = xScale(hoveredPoint.shortMonth) || 0;
-      svg
-        .append('line')
-        .attr('x1', hx)
-        .attr('x2', hx)
-        .attr('y1', margin.top)
-        .attr('y2', height - margin.bottom)
-        .attr('stroke', '#123524')
-        .attr('stroke-dasharray', '2,2')
-        .attr('stroke-width', 1.2)
-        .attr('opacity', 0.45);
-    }
-  }, [dimensions, data, hoveredPoint, activeView, latestPoint]);
-
-  const activePoint = hoveredPoint || latestPoint;
+    return {
+      margin,
+      innerWidth,
+      innerHeight,
+      xScale,
+      yScale,
+      yTicks,
+      totalAreaD,
+      sweepAreaD,
+      totalLineD,
+      sweepLineD,
+      targetY,
+    };
+  }, [dimensions, data, latestPoint]);
 
   return (
     <div
@@ -430,17 +217,202 @@ export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = ({
         </div>
       </div>
 
-      {/* D3 SVG Chart Stage */}
+      {/* Declarative React SVG Chart Stage */}
       <div ref={containerRef} className="w-full relative select-none">
         <svg
-          ref={svgRef}
           width={dimensions.width}
           height={dimensions.height}
-          className="overflow-visible w-full"
-        />
+          className="overflow-visible w-full block"
+        >
+          <defs>
+            <linearGradient id="totalBufferGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#123524" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#123524" stopOpacity="0.01" />
+            </linearGradient>
+            <linearGradient id="sweepBufferGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#d97706" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.02" />
+            </linearGradient>
+            <filter id="nodeGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="2.5" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          {/* Grid Lines */}
+          {chartMath.yTicks.map((tickVal) => (
+            <line
+              key={`grid-${tickVal}`}
+              x1={chartMath.margin.left}
+              x2={dimensions.width - chartMath.margin.right}
+              y1={chartMath.yScale(tickVal)}
+              y2={chartMath.yScale(tickVal)}
+              stroke="#ede8dc"
+              strokeDasharray="3,3"
+              strokeWidth="1"
+            />
+          ))}
+
+          {/* Y Axis Labels */}
+          {chartMath.yTicks.map((tickVal) => (
+            <text
+              key={`ytick-${tickVal}`}
+              x={chartMath.margin.left - 6}
+              y={chartMath.yScale(tickVal) + 3.5}
+              textAnchor="end"
+              fontSize="10px"
+              fontFamily="ui-monospace, SFMono-Regular, monospace"
+              fill="#8c9c91"
+            >
+              {tickVal === 0 ? '₹0' : `₹${tickVal / 1000}k`}
+            </text>
+          ))}
+
+          {/* X Axis Labels */}
+          {data.map((d) => (
+            <text
+              key={`xtick-${d.shortMonth}`}
+              x={chartMath.xScale(d.shortMonth) || 0}
+              y={dimensions.height - 8}
+              textAnchor="middle"
+              fontSize="11px"
+              fontFamily="ui-monospace, SFMono-Regular, monospace"
+              fontWeight={d.shortMonth === latestPoint.shortMonth ? '700' : '500'}
+              fill={d.shortMonth === latestPoint.shortMonth ? '#123524' : '#6b7d72'}
+            >
+              {d.shortMonth}
+            </text>
+          ))}
+
+          {/* Target Milestone Reference Line */}
+          {chartMath.targetY >= chartMath.margin.top &&
+            chartMath.targetY <= dimensions.height - chartMath.margin.bottom && (
+              <g>
+                <line
+                  x1={chartMath.margin.left}
+                  x2={dimensions.width - chartMath.margin.right}
+                  y1={chartMath.targetY}
+                  y2={chartMath.targetY}
+                  stroke="#a7c4b2"
+                  strokeDasharray="4,4"
+                  strokeWidth="1.2"
+                  opacity="0.8"
+                />
+                <text
+                  x={dimensions.width - chartMath.margin.right - 2}
+                  y={chartMath.targetY - 4}
+                  textAnchor="end"
+                  fontSize="9px"
+                  fontFamily="ui-monospace, monospace"
+                  fontWeight="600"
+                  fill="#5a826b"
+                >
+                  Target Cushion (₹15k)
+                </text>
+              </g>
+            )}
+
+          {/* Total Buffer Area and Stroke */}
+          {(activeView === 'all' || activeView === 'growth') && (
+            <g>
+              <path d={chartMath.totalAreaD} fill="url(#totalBufferGrad)" />
+              <path
+                d={chartMath.totalLineD}
+                fill="none"
+                stroke="#123524"
+                strokeWidth="2.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </g>
+          )}
+
+          {/* Micro Savings Sweeps Area and Stroke */}
+          {(activeView === 'all' || activeView === 'sweeps') && (
+            <g>
+              <path d={chartMath.sweepAreaD} fill="url(#sweepBufferGrad)" />
+              <path
+                d={chartMath.sweepLineD}
+                fill="none"
+                stroke="#d97706"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </g>
+          )}
+
+          {/* Highlight vertical guide line on hover */}
+          {hoveredPoint && (
+            <line
+              x1={chartMath.xScale(hoveredPoint.shortMonth) || 0}
+              x2={chartMath.xScale(hoveredPoint.shortMonth) || 0}
+              y1={chartMath.margin.top}
+              y2={dimensions.height - chartMath.margin.bottom}
+              stroke="#123524"
+              strokeDasharray="2,2"
+              strokeWidth="1.2"
+              opacity="0.45"
+            />
+          )}
+
+          {/* Node Circles */}
+          {data.map((d) => {
+            const cx = chartMath.xScale(d.shortMonth) || 0;
+            const cyTotal = chartMath.yScale(d.totalBuffer);
+            const cySweep = chartMath.yScale(d.microSavingsSweep);
+            const isHovered = hoveredPoint?.shortMonth === d.shortMonth;
+
+            return (
+              <g key={`nodes-${d.shortMonth}`}>
+                {(activeView === 'all' || activeView === 'sweeps') && (
+                  <circle
+                    cx={cx}
+                    cy={cySweep}
+                    r={isHovered ? 5.5 : 3.5}
+                    fill="#d97706"
+                    stroke="#ffffff"
+                    strokeWidth="1.8"
+                    filter={isHovered ? 'url(#nodeGlow)' : undefined}
+                  />
+                )}
+                {(activeView === 'all' || activeView === 'growth') && (
+                  <circle
+                    cx={cx}
+                    cy={cyTotal}
+                    r={isHovered ? 6 : 4}
+                    fill="#123524"
+                    stroke="#ffffff"
+                    strokeWidth="2"
+                    filter={isHovered ? 'url(#nodeGlow)' : undefined}
+                  />
+                )}
+              </g>
+            );
+          })}
+
+          {/* Interactive touch/mouse hover column overlay */}
+          {data.map((d) => {
+            const cx = chartMath.xScale(d.shortMonth) || 0;
+            const colWidth = chartMath.innerWidth / data.length;
+            return (
+              <rect
+                key={`hit-${d.shortMonth}`}
+                x={cx - colWidth / 2}
+                y={chartMath.margin.top}
+                width={colWidth}
+                height={chartMath.innerHeight}
+                fill="transparent"
+                className="cursor-pointer"
+                onMouseEnter={() => setHoveredPoint(d)}
+                onTouchStart={() => setHoveredPoint(d)}
+              />
+            );
+          })}
+        </svg>
       </div>
 
-      {/* Floating Active Month Inspector Card */}
+      {/* Active Month Inspector Card */}
       {activePoint && (
         <div className="bg-[#fcfaf4] border border-[#e8e2d5] rounded-2xl p-3.5 transition-all">
           <div className="flex items-start justify-between gap-3">
@@ -495,7 +467,7 @@ export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = ({
         </div>
       )}
 
-      {/* Behavioral Incentive Callout: Micro-Savings Sweeps Gamification */}
+      {/* Behavioral Incentive Callout */}
       <div className="bg-[#fef9ee] border border-[#f5e4bd] rounded-2xl p-3.5 space-y-2.5">
         <div className="flex items-start gap-2.5">
           <div className="w-8 h-8 rounded-full bg-[#d97706]/15 text-[#d97706] flex items-center justify-center shrink-0 mt-0.5">
@@ -529,7 +501,6 @@ export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = ({
             </span>
           </div>
           <div className="w-full h-2.5 bg-[#f2dfb8] rounded-full overflow-hidden flex">
-            {/* Base buffer portion */}
             <div
               style={{
                 width: `${Math.min(100, (latestPoint.baseBuffer / (latestPoint.milestoneTarget || 15000)) * 100)}%`,
@@ -537,7 +508,6 @@ export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = ({
               className="bg-[#123524] h-full transition-all duration-500"
               title="Base Buffer"
             />
-            {/* Micro-savings sweep portion */}
             <div
               style={{
                 width: `${Math.min(
@@ -556,7 +526,6 @@ export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = ({
           </div>
         </div>
 
-        {/* Quick Micro-Sweep Action button if available */}
         {onSweepMore && (
           <button
             onClick={onSweepMore}
@@ -570,4 +539,4 @@ export const LiquidBufferChart: React.FC<LiquidBufferChartProps> = ({
       </div>
     </div>
   );
-};
+});

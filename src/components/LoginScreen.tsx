@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   LogIn,
   UserPlus,
@@ -28,7 +28,7 @@ interface LoginScreenProps {
   isDeviceFrameView?: boolean;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({
+export const LoginScreen: React.FC<LoginScreenProps> = React.memo(({
   onLoginSuccess,
   isDeviceFrameView = true,
 }) => {
@@ -43,7 +43,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     text: string;
   } | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setStatusMessage({ type: 'error', text: 'Please enter your email and password.' });
@@ -121,9 +121,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [email, password, displayName, selectedRole, authMode, onLoginSuccess]);
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = useCallback(async () => {
     setIsLoading(true);
     setStatusMessage(null);
     try {
@@ -163,9 +163,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedRole, onLoginSuccess]);
 
-  const handleInstantDemoLogin = async (
+  const handleInstantDemoLogin = useCallback(async (
     demoEmail: string,
     demoPass: string,
     demoName: string,
@@ -206,7 +206,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [onLoginSuccess]);
 
   return (
     <div className="min-h-full flex flex-col justify-center px-4 py-8 max-w-md mx-auto">
@@ -467,14 +467,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 handleInstantDemoLogin(
                   'nilavra.s2007@gmail.com',
                   'password123',
-                  'Aarti Patel',
+                  'Nilavra Sen',
                   'borrower'
                 )
               }
               className="p-2.5 bg-[#f4efe4] hover:bg-[#eae3d2] text-[#123524] rounded-xl text-left transition-all border border-[#e5ded0] active:scale-98 disabled:opacity-50"
             >
-              <div className="font-semibold text-xs">Aarti Patel</div>
-              <div className="text-[10px] text-[#55695c]">Borrower (Farmer)</div>
+              <div className="font-semibold text-xs">Nilavra Sen</div>
+              <div className="text-[10px] text-[#55695c]">Borrower Account</div>
             </button>
 
             <button
@@ -504,4 +504,4 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       </div>
     </div>
   );
-};
+});
