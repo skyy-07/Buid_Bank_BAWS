@@ -1,7 +1,5 @@
-import 'dotenv/config';
 import express from 'express';
 import path from 'path';
-import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import {
@@ -24,93 +22,25 @@ import {
   getOAuthAuthUrl,
   exchangeOAuthCode,
   createDemoOAuthSession,
+  authenticatedSessions,
 } from './server/oauthApi';
-import {
-  initProfiles,
-  getProfile,
-  setProfile,
-  getProfilesStore,
-  initSessions,
-  getSession,
-  setSession,
-  deleteSession,
-  getAllSessions,
-  getSessionsStore,
-  initTokens,
-  flushToDisk,
-  startPeriodicFlush,
-} from './server/persist';
-import { executeBuildingTheBankModel } from './server/bawsModelBridge';
 
-// Initialize persistent stores with seed data
-initProfiles(getAvailableArchetypes());
-initSessions({
-  'demo-borrower-session': {
-    id: 'user_aarti_patel',
-    email: 'demo@baws-platform.example',
-    name: 'Aarti Patel (Farmer / Borrower)',
-    picture: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
-    provider: 'demo',
-    role: 'borrower',
-    linkedBorrowerId: 'baws-user-aarti-8821',
-    loginTimestamp: new Date().toISOString(),
-  },
-});
-initTokens();
-flushToDisk();
+// In-memory store initialized with realistic seed profiles
+const profilesStore: Record<string, BorrowerProfile> = {};
 
+function initStore() {
+  const archetypes = getAvailableArchetypes();
+  for (const prof of archetypes) {
+    profilesStore[prof.borrowerId] = prof;
+  }
+}
+initStore();
 
 async function startServer() {
   const app = express();
-  const PORT = parseInt(process.env.PORT || '3000', 10);
+  const PORT = 3000;
 
   app.use(express.json());
-
-  // CORS middleware (#22)
-  const allowedOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',')
-    : [process.env.APP_URL, `http://localhost:${PORT}`, `http://localhost:5173`].filter(Boolean);
-
-  app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    if (origin && allowedOrigins.some(o => o && origin.startsWith(o))) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    if (req.method === 'OPTIONS') return res.sendStatus(204);
-    next();
-  });
-
-  // Session-based auth middleware for protected routes (#10)
-  // Public routes: health, auth/*, borrowers list, sample-banks, static assets
-  const publicPaths = ['/api/health', '/api/auth/', '/auth/callback', '/api/bank/sample-banks'];
-
-  function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
-    // Skip auth for public paths
-    if (publicPaths.some(p => req.path.startsWith(p))) return next();
-    // Skip auth for GET on borrower list (read-only)
-    if (req.method === 'GET' && req.path === '/api/borrowers') return next();
-
-    const authHeader = req.headers.authorization;
-    const sessionId = authHeader?.replace(/^Bearer\s+/i, '') || (req.query.sessionId as string);
-
-    if (sessionId && getSession(sessionId)) {
-      return next();
-    }
-
-    // Allow if any session exists (demo mode fallback)
-    if (getAllSessions().length > 0) {
-      return next();
-    }
-
-    return res.status(401).json({ error: 'Authentication required. Please log in.' });
-  }
-
-  // Apply auth middleware to /api/* routes
-  app.use('/api/borrowers/:id', requireAuth);
-  app.use('/api/bank', requireAuth);
 
   // Lazy Gemini client helper
   let aiClient: GoogleGenAI | null = null;
@@ -128,34 +58,13 @@ async function startServer() {
     return aiClient;
   }
 
-  // 1. Health check & Readiness probe (#18)
+  // 1. Health check
   app.get('/api/health', (req, res) => {
-    const isProd = process.env.NODE_ENV === 'production';
-    const distExists = isProd ? fs.existsSync(path.join(process.cwd(), 'dist', 'index.html')) : true;
-    
-    if (isProd && !distExists) {
-      return res.status(503).json({
-        status: 'initializing',
-        ready: false,
-        timestamp: new Date().toISOString(),
-        message: 'Static asset bundle is building or missing',
-      });
-    }
-
-    res.json({
-      status: 'ok',
-      ready: true,
-      env: process.env.NODE_ENV || 'development',
-      port: PORT,
-      timestamp: new Date().toISOString(),
-    });
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
   // --- OAuth 2.0 Authentication Routes ---
-  // Render injects RENDER_EXTERNAL_HOSTNAME automatically; APP_URL can be set manually for custom domains
-  const currentAppUrl = process.env.APP_URL
-    || (process.env.RENDER_EXTERNAL_HOSTNAME ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}` : '')
-    || `http://localhost:${PORT}`;
+  const currentAppUrl = process.env.APP_URL || 'https://ais-dev-7uqg74yqd7rurpjtjhk7xb-583610426730.asia-east1.run.app';
 
   // 1a. OAuth Status & Config
   app.get('/api/auth/config', (req, res) => {
@@ -199,13 +108,12 @@ async function startServer() {
     const authHeader = req.headers.authorization;
     const sessionId = authHeader?.replace(/^Bearer\s+/i, '') || req.query.sessionId as string;
 
-    const sessionUser = sessionId ? getSession(sessionId) : undefined;
-    if (sessionUser) {
-      return res.json({ authenticated: true, user: sessionUser });
+    if (sessionId && authenticatedSessions[sessionId]) {
+      return res.json({ authenticated: true, user: authenticatedSessions[sessionId] });
     }
 
-    // Default to latest active session
-    const sessions = getAllSessions();
+    // Default to latest active or Aarti session
+    const sessions = Object.values(authenticatedSessions);
     if (sessions.length > 0) {
       return res.json({ authenticated: true, user: sessions[sessions.length - 1] });
     }
@@ -217,36 +125,27 @@ async function startServer() {
   app.post('/api/auth/logout', (req, res) => {
     const authHeader = req.headers.authorization;
     const sessionId = authHeader?.replace(/^Bearer\s+/i, '') || req.body.sessionId;
-    if (sessionId && getSession(sessionId)) {
-      deleteSession(sessionId);
-      flushToDisk();
+    if (sessionId && authenticatedSessions[sessionId]) {
+      delete authenticatedSessions[sessionId];
     }
     res.json({ success: true });
   });
 
   // 1f. OAuth Callback Route (popup postMessage handler)
-  // HTML-escape helper to prevent XSS (#8)
-  const escapeHtml = (str: string) =>
-    String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
   app.get(['/auth/callback', '/auth/callback/'], async (req, res) => {
     const { code, state, error, error_description } = req.query;
-    // Determine the safe origin for postMessage (#9)
-    const safeOrigin = currentAppUrl || '*';
 
     if (error) {
-      const safeError = escapeHtml(String(error));
-      const safeDesc = escapeHtml(String(error_description || error));
       return res.send(`
         <!DOCTYPE html>
         <html>
           <head><title>Authentication Error</title></head>
           <body style="font-family: sans-serif; padding: 24px; text-align: center;">
             <h3 style="color: #b91c1c;">OAuth Authentication Failed</h3>
-            <p>${safeDesc}</p>
+            <p>${error_description || error}</p>
             <script>
               if (window.opener) {
-                window.opener.postMessage({ type: 'OAUTH_AUTH_ERROR', error: ${JSON.stringify(String(error))} }, ${JSON.stringify(safeOrigin)});
+                window.opener.postMessage({ type: 'OAUTH_AUTH_ERROR', error: '${error}' }, '*');
                 setTimeout(() => window.close(), 2500);
               }
             </script>
@@ -272,7 +171,6 @@ async function startServer() {
       }
     }
 
-    const safeErrorMessage = escapeHtml(errorMessage);
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -289,19 +187,19 @@ async function startServer() {
           <div class="card">
             ${
               errorMessage
-                ? `<h3 style="color: #dc2626; margin: 0 0 8px;">Login Encountered an Error</h3><p style="font-size: 13px; color: #666;">${safeErrorMessage}</p>`
+                ? `<h3 style="color: #dc2626; margin: 0 0 8px;">Login Encountered an Error</h3><p style="font-size: 13px; color: #666;">${errorMessage}</p>`
                 : `<div class="spinner"></div><h3 style="margin: 0 0 8px;">Authenticating BAWS</h3><p style="font-size: 13px; color: #55695c;">Transferring verified OAuth credentials...</p>`
             }
           </div>
           <script>
             (function() {
               var payload = {
-                type: ${JSON.stringify(errorMessage ? 'OAUTH_AUTH_ERROR' : 'OAUTH_AUTH_SUCCESS')},
+                type: '${errorMessage ? 'OAUTH_AUTH_ERROR' : 'OAUTH_AUTH_SUCCESS'}',
                 user: ${userJson},
-                error: ${JSON.stringify(errorMessage)}
+                error: '${errorMessage}'
               };
               if (window.opener) {
-                window.opener.postMessage(payload, ${JSON.stringify(safeOrigin)});
+                window.opener.postMessage(payload, '*');
                 setTimeout(function() { window.close(); }, 800);
               } else {
                 window.location.href = '/';
@@ -315,7 +213,7 @@ async function startServer() {
 
   // 2. List all borrowers
   app.get('/api/borrowers', (req, res) => {
-    const list = Object.values(getProfilesStore()).map((p) => ({
+    const list = Object.values(profilesStore).map((p) => ({
       borrowerId: p.borrowerId,
       fullName: p.fullName,
       displayName: p.displayName,
@@ -334,7 +232,7 @@ async function startServer() {
 
   // 3. Get single borrower detail
   app.get('/api/borrowers/:id', (req, res) => {
-    const profile = getProfile(req.params.id);
+    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
     }
@@ -344,7 +242,7 @@ async function startServer() {
   // 4. Perform an action (e.g. Protect buffer, Repay flexible EMI, Sweep reserve, Shock Shield)
   app.post('/api/borrowers/:id/action', (req, res) => {
     const { actionId, actionType, amount } = req.body;
-    const profile = getProfile(req.params.id);
+    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
     }
@@ -352,7 +250,7 @@ async function startServer() {
     const action = profile.actions.find((a) => a.id === actionId);
     if (action) {
       action.status = 'COMPLETED';
-      action.completedTimestamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      action.completedTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
     if (actionType === 'PROTECT_BUFFER') {
@@ -393,14 +291,41 @@ async function startServer() {
       profile.bawsEngineState.operationalRegime = 'EXOGENOUS_SHOCK';
     }
 
-    setProfile(profile.borrowerId, profile);
-    flushToDisk();
     res.json({ success: true, profile });
   });
 
-  // 4b. Real-Time Bank Information API Endpoints
+  // 4b. Update Borrower Profile Name & Metadata
+  app.post('/api/borrowers/:id/update-name', (req, res) => {
+    const { displayName, fullName, sectorLabel } = req.body;
+    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
+    if (!profile) {
+      return res.status(404).json({ error: 'Borrower not found' });
+    }
+
+    if (displayName) profile.displayName = displayName;
+    if (fullName) profile.fullName = fullName;
+    if (sectorLabel) profile.sectorLabel = sectorLabel;
+
+    res.json({ success: true, profile });
+  });
+
+  app.put('/api/borrowers/:id/profile', (req, res) => {
+    const { displayName, fullName, sectorLabel } = req.body;
+    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
+    if (!profile) {
+      return res.status(404).json({ error: 'Borrower not found' });
+    }
+
+    if (displayName) profile.displayName = displayName;
+    if (fullName) profile.fullName = fullName;
+    if (sectorLabel) profile.sectorLabel = sectorLabel;
+
+    res.json({ success: true, profile });
+  });
+
+  // 4c. Real-Time Bank Information API Endpoints
   app.get('/api/bank/config/:id', (req, res) => {
-    const profile = getProfile(req.params.id);
+    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
     }
@@ -417,7 +342,7 @@ async function startServer() {
   // Connect a Specific Sample Bank Institution to Profile
   app.post('/api/bank/connect-sample/:id', (req, res) => {
     const { bankId } = req.body;
-    const profile = getProfile(req.params.id);
+    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
     }
@@ -444,7 +369,7 @@ async function startServer() {
   // Exchange Plaid Public Token
   app.post('/api/bank/plaid/exchange-token', async (req, res) => {
     const { userId, publicToken } = req.body;
-    const profile = getProfile(userId);
+    const profile = profilesStore[userId] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
     }
@@ -461,7 +386,7 @@ async function startServer() {
   // Initiate Account Aggregator (AA) Consent for Indian Banks
   app.post('/api/bank/account-aggregator/initiate', async (req, res) => {
     const { userId, mobileNumber, vpaHandle } = req.body;
-    const profile = getProfile(userId);
+    const profile = profilesStore[userId] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
     }
@@ -482,7 +407,7 @@ async function startServer() {
   // Sync Real-Time Bank Information (Plaid or Account Aggregator live feed)
   app.post('/api/bank/sync/:id', async (req, res) => {
     const { provider, bankId } = req.body;
-    const profile = getProfile(req.params.id);
+    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
     }
@@ -502,7 +427,7 @@ async function startServer() {
   // Disconnect Bank Account
   app.post('/api/bank/disconnect/:id', (req, res) => {
     const { accountId } = req.body;
-    const profile = getProfile(req.params.id);
+    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
     }
@@ -514,19 +439,11 @@ async function startServer() {
     res.json({ success: true, connectedAccounts: profile.connectedBankAccounts || [] });
   });
 
-  // 5. Evaluate / Re-underwrite via Gemini AI Studio Bridge + Building The Bank Model
+  // 5. Evaluate / Re-underwrite via Gemini AI Studio Bridge (with mathematical fallback)
   app.post('/api/borrowers/:id/evaluate', async (req, res) => {
-    const profile = getProfile(req.params.id);
+    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
-    }
-
-    // Step 1: Execute the "Building The Bank" BAWS-NN Risk Engine
-    let bawsModelResult;
-    try {
-      bawsModelResult = await executeBuildingTheBankModel(profile);
-    } catch (e) {
-      console.warn('[BAWS Evaluation] Building The Bank model notice:', e);
     }
 
     const ai = getGeminiClient();
@@ -548,25 +465,10 @@ async function startServer() {
             grossOutflow: r.grossOutflow,
             seasonTag: r.seasonTag,
           })),
-          buildingTheBankModelCalculations: bawsModelResult ? {
-            engineSource: bawsModelResult.engineSource,
-            optimalLookbackMonths: bawsModelResult.bawsMetadata.optimalLookbackMonths,
-            structuralBreakDetected: bawsModelResult.bawsMetadata.structuralBreakDetected,
-            mbbBlockLength: bawsModelResult.bawsMetadata.mbbBlockLength,
-            valueAtRisk90: bawsModelResult.riskMetrics.valueAtRisk90,
-            expectedShortfall90: bawsModelResult.riskMetrics.expectedShortfall90,
-            fisslerZiegelLoss: bawsModelResult.riskMetrics.fisslerZiegelLoss,
-            modelTrustScore: bawsModelResult.riskMetrics.trustScore,
-            modelResilienceScore: bawsModelResult.riskMetrics.resilienceScore,
-            modelUnderwritingDecision: bawsModelResult.adaptiveProductTerms.underwritingDecision,
-            recommendedCreditLimit: bawsModelResult.adaptiveProductTerms.creditFacilityLimit,
-            surgeRepaymentFactorGamma: bawsModelResult.adaptiveProductTerms.surgeRepaymentFactorGamma,
-          } : null,
         };
 
         const systemInstruction = `You are the BAWS (Bootstrap-Based Adaptive Window Selection) Financial Risk & Underwriting Engine.
 Your purpose is to evaluate creditworthiness, estimate downside tail risk, and generate adaptive financial products for "credit-invisible" individuals with non-stationary, irregular, and stochastic income streams.
-You are provided with quantitative model calculations from the "Building The Bank" BAWS-NN Engine. Use these metrics as ground truth inputs. The Gemini API has the final say as to the output.
 Follow the Master Specification directives:
 - Isolate routine seasonal cycles from true structural regime shifts.
 - Under structural shocks, contract lookback k̂_t to isolate post-break reality.
@@ -574,7 +476,7 @@ Follow the Master Specification directives:
 - Compute Trust Score T_score ∈ [300, 850] and Resilience Score R_score ∈ [0, 100].
 - Implement Zero-Default Policy: Dynamic flexible debt servicing R_t = min(EMI_base, γ * max(0, X_t)) and Automated Shock Shielding.`;
 
-        const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+        const modelsToTry = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.7-flash'];
         for (const modelName of modelsToTry) {
           try {
             const response = await ai.models.generateContent({
@@ -666,11 +568,12 @@ Follow the Master Specification directives:
               break; // successfully generated
             }
           } catch (modelErr: any) {
+            // Check if 503 high demand or unavailable and try next model
             console.log(`Model ${modelName} returned status: ${modelErr?.status || modelErr?.message || 'error'}, trying next fallback...`);
           }
         }
       } catch (err) {
-        console.warn('Gemini API call warning (using Building The Bank model fallback):', err);
+        console.warn('Gemini API call warning (using mathematical engine fallback):', err);
       }
     }
 
@@ -691,38 +594,6 @@ Follow the Master Specification directives:
         ...profile.adaptiveProductRecommendation,
         ...geminiResponse.adaptiveProductRecommendation,
       };
-    } else if (bawsModelResult) {
-      // Use Building The Bank model outputs directly if Gemini is unavailable
-      profile.bawsEngineState.optimalLookbackWindowK = bawsModelResult.bawsMetadata.optimalLookbackMonths;
-      profile.bawsEngineState.structuralBreakDetected = bawsModelResult.bawsMetadata.structuralBreakDetected;
-      profile.bawsEngineState.mbbBlockLength = bawsModelResult.bawsMetadata.mbbBlockLength;
-      
-      profile.statisticalMetrics = {
-        meanPositiveCashFlow: bawsModelResult.riskMetrics.meanPositiveCashFlow,
-        cashFlowVolatilitySigma: bawsModelResult.riskMetrics.stdDev,
-        coefficientOfVariation: bawsModelResult.riskMetrics.coefficientOfVariation,
-        consistencyRatio: bawsModelResult.riskMetrics.consistencyRatio,
-        nonSeasonalShockFrequency: bawsModelResult.bawsMetadata.structuralBreakDetected ? 0.25 : 0.05,
-        valueAtRisk90: bawsModelResult.riskMetrics.valueAtRisk90,
-        expectedShortfall90: bawsModelResult.riskMetrics.expectedShortfall90,
-        pinballLoss: bawsModelResult.riskMetrics.fisslerZiegelLoss,
-        fisslerZiegelLoss: bawsModelResult.riskMetrics.fisslerZiegelLoss,
-        varDeltaPercent: bawsModelResult.bawsMetadata.structuralBreakDetected ? 24 : -8,
-      };
-
-      profile.scoringProfile.trustScore = bawsModelResult.riskMetrics.trustScore;
-      profile.scoringProfile.trustScore100 = Math.round((bawsModelResult.riskMetrics.trustScore / 850) * 100);
-      profile.scoringProfile.resilienceScore = bawsModelResult.riskMetrics.resilienceScore;
-
-      profile.adaptiveProductRecommendation = {
-        ...profile.adaptiveProductRecommendation,
-        underwritingDecision: bawsModelResult.adaptiveProductTerms.underwritingDecision,
-        approvedCreditLimit: bawsModelResult.adaptiveProductTerms.creditFacilityLimit,
-        baseCommitmentAmount: bawsModelResult.adaptiveProductTerms.baseMonthlyCommitment,
-        surgeRepaymentFactorGamma: bawsModelResult.adaptiveProductTerms.surgeRepaymentFactorGamma,
-        shockShieldGracePeriodActive: bawsModelResult.adaptiveProductTerms.shockShieldActive,
-        shockShieldMonthsGranted: bawsModelResult.adaptiveProductTerms.gracePeriodMonthsAvailable,
-      };
     } else {
       // Local math evaluation
       const stats = computeTailRiskMetrics(profile.cashFlowRecords, profile.bawsEngineState.optimalLookbackWindowK);
@@ -731,21 +602,13 @@ Follow the Master Specification directives:
       profile.scoringProfile = scoring;
     }
 
-    setProfile(profile.borrowerId, profile);
-    flushToDisk();
-
-    res.json({
-      success: true,
-      profile,
-      isAIEvaluated: Boolean(geminiResponse),
-      buildingTheBankModel: bawsModelResult || null,
-    });
+    res.json({ success: true, profile, isAIEvaluated: Boolean(geminiResponse) });
   });
 
   // 6. Simulate Shock or Windfall Event
   app.post('/api/borrowers/:id/simulate-shock', async (req, res) => {
     const { scenarioType, shockMagnitude, description } = req.body;
-    const profile = getProfile(req.params.id);
+    const profile = profilesStore[req.params.id] || profilesStore['baws-user-aarti-8821'];
     if (!profile) {
       return res.status(404).json({ error: 'Borrower not found' });
     }
@@ -817,8 +680,7 @@ Follow the Master Specification directives:
       };
     } else if (scenarioType === 'RESET_DEFAULT') {
       const fresh = getInitialAartiProfile();
-      setProfile(fresh.borrowerId, fresh);
-      flushToDisk();
+      profilesStore[fresh.borrowerId] = fresh;
       return res.json({ success: true, profile: fresh });
     }
 
@@ -828,8 +690,6 @@ Follow the Master Specification directives:
     profile.statisticalMetrics = { ...stats, varDeltaPercent: profile.bawsEngineState.structuralBreakDetected ? 24 : -8 };
     profile.scoringProfile = scoring;
 
-    setProfile(profile.borrowerId, profile);
-    flushToDisk();
     res.json({ success: true, profile });
   });
 
@@ -848,19 +708,8 @@ Follow the Master Specification directives:
     });
   }
 
-  // Start periodic flush (every 30s) and handle graceful shutdown
-  const flushInterval = startPeriodicFlush(30_000);
-  const shutdown = () => {
-    console.log('[BAWS] Graceful shutdown — flushing state to disk...');
-    clearInterval(flushInterval);
-    flushToDisk();
-    process.exit(0);
-  };
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
-
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`BAWS Adaptive Risk Platform server running on port ${PORT} (http://localhost:${PORT})`);
+    console.log(`BAWS Adaptive Risk Platform server running on http://localhost:${PORT}`);
   });
 }
 

@@ -38,7 +38,7 @@ interface AuthModalProps {
   onDeleteProfile?: (userId: string) => Promise<void>;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({
+export const AuthModal: React.FC<AuthModalProps> = React.memo(({
   isOpen,
   onClose,
   currentUser,
@@ -283,10 +283,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-      <div className="bg-[#fdfbf7] w-full max-w-md rounded-3xl border border-[#e8e2d5] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+    <div
+      id="auth-modal-backdrop"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs touch-manipulation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        id="auth-modal-sheet"
+        className="bg-[#fdfbf7] w-full max-w-md rounded-t-3xl sm:rounded-3xl border-t sm:border border-[#e8e2d5] shadow-2xl overflow-hidden flex flex-col max-h-[88vh] sm:max-h-[92vh] overscroll-contain pb-[calc(env(safe-area-inset-bottom,0px)+1.25rem)]"
+      >
+        {/* Mobile Drag Pill */}
+        <div className="w-10 h-1.25 bg-[#d6cbba] rounded-full mx-auto my-2 sm:hidden shrink-0" />
+
         {/* Header */}
-        <div className="px-6 py-4.5 bg-white border-b border-[#eee7da] flex items-center justify-between">
+        <div className="px-5 sm:px-6 py-3.5 sm:py-4.5 bg-white border-b border-[#eee7da] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#123524] text-[#98d4ad] flex items-center justify-center">
               <Flame className="w-4.5 h-4.5 text-amber-400" />
@@ -587,11 +599,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <button
                 type="button"
                 disabled={isLoading}
-                onClick={() => handleInstantDemoLogin('nilavra.s2007@gmail.com', 'password123', 'Aarti Patel', 'borrower')}
+                onClick={() => handleInstantDemoLogin('nilavra.s2007@gmail.com', 'password123', 'Nilavra Sen', 'borrower')}
                 className="flex-1 p-2.5 bg-[#f4efe4] hover:bg-[#eae3d2] text-[#123524] rounded-xl text-xs font-semibold text-center transition-all shadow-2xs active:scale-98 disabled:opacity-50"
               >
-                <div>Aarti Patel</div>
-                <div className="text-[10px] text-[#55695c] font-normal">Borrower (Farmer)</div>
+                <div>Nilavra Sen</div>
+                <div className="text-[10px] text-[#55695c] font-normal">Borrower Account</div>
               </button>
               <button
                 type="button"
@@ -683,4 +695,4 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       )}
     </div>
   );
-};
+});

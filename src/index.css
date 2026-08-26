@@ -20,6 +20,254 @@ body {
   background-color: #f7f5ee;
   color: #12281e;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* ==========================================================================
+   DARK MODE STYLES & OVERRIDES (.dark, .theme-dark)
+   ========================================================================== */
+.dark body,
+body.dark {
+  background-color: #0b120e !important;
+  color: #e5efe8 !important;
+}
+
+.dark #app-main-container,
+.theme-dark #app-main-container {
+  background-color: #121c16 !important;
+  border-color: #24382c !important;
+}
+
+.dark .bg-\[\#faf8f2\],
+.dark .bg-\[\#fdfbf7\],
+.dark .bg-\[\#f7f5ee\],
+.dark .bg-\[\#ede8dc\],
+.dark .bg-\[\#f4efe4\] {
+  background-color: #16231c !important;
+}
+
+.dark .bg-white {
+  background-color: #182820 !important;
+}
+
+.dark .bg-white\/70,
+.dark .bg-white\/80,
+.dark .bg-white\/90 {
+  background-color: rgba(24, 40, 32, 0.92) !important;
+}
+
+.dark .text-\[\#123524\],
+.dark .text-\[\#12281e\],
+.dark .text-\[\#1b4332\] {
+  color: #eef6f1 !important;
+}
+
+.dark .text-\[\#4a5c50\],
+.dark .text-\[\#55695c\],
+.dark .text-\[\#4a6353\],
+.dark .text-\[\#3c4a40\] {
+  color: #b3c9bc !important;
+}
+
+.dark .text-\[\#6e7f74\],
+.dark .text-\[\#69796e\],
+.dark .text-\[\#80a98f\],
+.dark .text-\[\#9ea8a0\] {
+  color: #8da496 !important;
+}
+
+.dark .border-\[\#e8e2d5\],
+.dark .border-\[\#eee7da\],
+.dark .border-\[\#e2dacb\],
+.dark .border-\[\#d6cbba\],
+.dark .border-\[\#f0ece4\],
+.dark .border-\[\#ded5c5\],
+.dark .border-\[\#e5ded0\] {
+  border-color: #273e31 !important;
+}
+
+.dark .bg-\[\#f0f7f2\],
+.dark .bg-\[\#faf8f2\] {
+  background-color: #182820 !important;
+}
+
+.dark .border-\[\#cfe6d6\],
+.dark .border-\[\#b6ddc2\] {
+  border-color: #2e4d3d !important;
+}
+
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #131f18 !important;
+  color: #f0f7f2 !important;
+  border-color: #2c4436 !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #657e70 !important;
+}
+
+.dark #mobile-bottom-nav {
+  background-color: rgba(18, 28, 22, 0.95) !important;
+  border-top-color: #24382c !important;
+}
+
+.dark #mobile-bottom-nav .bg-\[\#d8e7dc\] {
+  background-color: #233b2e !important;
+}
+
+.dark #mobile-bottom-nav .text-\[\#123524\] {
+  color: #4ade80 !important;
+}
+
+.dark #mobile-bottom-nav .text-\[\#69796e\] {
+  color: #8da496 !important;
+}
+
+.theme-contrast #mobile-bottom-nav {
+  background-color: #ffffff !important;
+  border-top: 3px solid #000000 !important;
+}
+
+.theme-contrast #mobile-bottom-nav .bg-\[\#d8e7dc\] {
+  background-color: #000000 !important;
+}
+
+.theme-contrast #mobile-bottom-nav .bg-\[\#d8e7dc\] + svg,
+.theme-contrast #mobile-bottom-nav .text-\[\#123524\] {
+  color: #000000 !important;
+  font-weight: 800 !important;
+}
+
+.theme-contrast #mobile-bottom-nav .text-\[\#69796e\] {
+  color: #222222 !important;
+}
+
+.dark .shadow-xs,
+.dark .shadow-sm,
+.dark .shadow-md,
+.dark .shadow-xl {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ==========================================================================
+   HIGH CONTRAST MODE STYLES & OVERRIDES (.theme-contrast)
+   ========================================================================== */
+.theme-contrast body,
+body.theme-contrast {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+.theme-contrast #app-main-container {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 3px solid #000000 !important;
+}
+
+.theme-contrast .bg-white,
+.theme-contrast .bg-\[\#faf8f2\],
+.theme-contrast .bg-\[\#fdfbf7\],
+.theme-contrast .bg-\[\#f7f5ee\],
+.theme-contrast .bg-\[\#ede8dc\],
+.theme-contrast .bg-\[\#f4efe4\] {
+  background-color: #ffffff !important;
+  border-color: #000000 !important;
+  border-width: 2px !important;
+}
+
+.theme-contrast .text-\[\#123524\],
+.theme-contrast .text-\[\#12281e\],
+.theme-contrast .text-\[\#4a5c50\],
+.theme-contrast .text-\[\#6e7f74\],
+.theme-contrast .text-\[\#55695c\],
+.theme-contrast .text-\[\#1b4332\] {
+  color: #000000 !important;
+  font-weight: 600 !important;
+}
+
+.theme-contrast .border-\[\#e8e2d5\],
+.theme-contrast .border-\[\#eee7da\],
+.theme-contrast .border-\[\#e2dacb\],
+.theme-contrast .border-\[\#d6cbba\],
+.theme-contrast .border-\[\#f0ece4\],
+.theme-contrast .border-\[\#ded5c5\],
+.theme-contrast .border-\[\#e5ded0\] {
+  border-color: #000000 !important;
+}
+
+.theme-contrast button:not(.bg-transparent) {
+  border: 2px solid #000000 !important;
+}
+
+.theme-contrast input,
+.theme-contrast textarea,
+.theme-contrast select {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+  font-weight: 700 !important;
+}
+
+/* ==========================================================================
+   ACCESSIBILITY: FONT SCALING & REDUCED MOTION
+   ========================================================================== */
+.font-scale-lg {
+  font-size: 110%;
+}
+
+.font-scale-xl {
+  font-size: 122%;
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.001s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001s !important;
+  scroll-behavior: auto !important;
+}
+
+/* Touch and mobile optimizations */
+button, a, input, select, textarea {
+  touch-action: manipulation;
+}
+
+/* Prevent auto-zoom on input focus in iOS Safari */
+@media screen and (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Safe area padding utilities for edge-to-edge mobile devices */
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.h-dvh-full {
+  height: 100dvh;
+}
+
+.min-h-dvh-full {
+  min-height: 100dvh;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .font-display {

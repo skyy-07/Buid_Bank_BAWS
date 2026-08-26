@@ -31,7 +31,7 @@ interface BankConnectModalProps {
   onProfileUpdated: (updatedProfile: BorrowerProfile) => void;
 }
 
-export const BankConnectModal: React.FC<BankConnectModalProps> = ({
+export const BankConnectModal: React.FC<BankConnectModalProps> = React.memo(({
   isOpen,
   onClose,
   profile,
@@ -218,39 +218,48 @@ export const BankConnectModal: React.FC<BankConnectModalProps> = ({
   return (
     <div
       id="bank-connect-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 touch-manipulation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div
-        className="bg-white w-full max-w-2xl rounded-3xl p-5 sm:p-6 border border-[#e5ded0] shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto"
+        id="bank-connect-sheet"
+        className="bg-white w-full max-w-2xl rounded-t-3xl sm:rounded-3xl p-4 sm:p-6 border-t sm:border border-[#e5ded0] shadow-2xl space-y-4 sm:space-y-5 max-h-[88vh] sm:max-h-[92vh] overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom,0px)+1.25rem)]"
         role="dialog"
         aria-modal="true"
       >
+        {/* Mobile Drag Pill Handle */}
+        <div className="w-10 h-1.25 bg-[#d6cbba] rounded-full mx-auto mb-1 sm:hidden shrink-0" />
+
         {/* Modal Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-[#123524] text-[#98d4ad] flex items-center justify-center shadow-xs">
-              <Building2 className="w-6 h-6" />
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#123524] text-[#98d4ad] flex items-center justify-center shadow-xs shrink-0">
+              <Building2 className="w-5.5 h-5.5 sm:w-6 sm:h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[#6e7f74]">
-                  Real-Time Banking Integration
+                  Real-Time Banking
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-[#eef7f2] text-[#123524] text-[9px] font-mono font-bold">
-                  {accounts.length} Active Accounts
+                  {accounts.length} Active
                 </span>
               </div>
-              <h2 className="font-display text-xl sm:text-2xl font-bold text-[#123524]">
+              <h2 className="font-display text-lg sm:text-2xl font-bold text-[#123524]">
                 Connected Bank Accounts
               </h2>
             </div>
           </div>
 
           <button
+            id="bank-modal-close-btn"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-[#f4eee1] hover:bg-[#eae2d3] flex items-center justify-center text-[#123524] transition-colors"
+            className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-full bg-[#f4eee1] hover:bg-[#eae2d3] active:bg-[#ded5c4] flex items-center justify-center text-[#123524] transition-colors"
+            aria-label="Close bank modal"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4.5 h-4.5" />
           </button>
         </div>
 
@@ -545,4 +554,4 @@ export const BankConnectModal: React.FC<BankConnectModalProps> = ({
       </div>
     </div>
   );
-};
+});

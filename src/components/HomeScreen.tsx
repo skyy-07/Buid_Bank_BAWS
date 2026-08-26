@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   TrendingDown,
   HelpCircle,
@@ -28,7 +28,7 @@ interface HomeScreenProps {
   onOpenBankModal?: () => void;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({
+export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
   profile,
   onNavigateToTab,
   onExecuteAction,
@@ -52,13 +52,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const liquidBuffer = profile.currentLiquidBuffer;
   const essentialDays = profile.scoringProfile.formulaBreakdown.essentialDaysCovered || 9;
 
-  // Track previous resilience score to detect manual user actions
+  // Track previous resilience score to detect user-driven increases across milestones
   const prevResilienceRef = useRef<number>(resilience);
-  const isInitialMount = useRef<boolean>(true);
+  const isInitialMountRef = useRef<boolean>(true);
 
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
       prevResilienceRef.current = resilience;
       return;
     }
@@ -66,52 +66,63 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     const prevScore = prevResilienceRef.current;
     const currentScore = resilience;
 
-    // Check if score has increased significantly after user action
-    if (currentScore > prevScore && currentScore - prevScore >= 2.5) {
+    // Check if score has increased
+    if (currentScore > prevScore) {
+      // Check threshold milestones (85, 80, 75, 70)
       const crossedMilestone = RESILIENCE_MILESTONES.find(
         (m) => prevScore < m.threshold && currentScore >= m.threshold
       );
 
-      const threshold = crossedMilestone ? crossedMilestone.threshold : (currentScore >= 70 ? 70 : 65);
-      setCelebrationPrevScore(prevScore);
-      setCelebrationNewScore(currentScore);
-      setThresholdCrossed(threshold);
-      setIsCelebrationOpen(true);
+      // Or significant increase of >= 2.5 points
+      if (crossedMilestone || currentScore - prevScore >= 2.5) {
+        const threshold = crossedMilestone ? crossedMilestone.threshold : (currentScore >= 70 ? 70 : 65);
+        setCelebrationPrevScore(prevScore);
+        setCelebrationNewScore(currentScore);
+        setThresholdCrossed(threshold);
+        setIsCelebrationOpen(true);
+      }
     }
 
     prevResilienceRef.current = currentScore;
   }, [resilience]);
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = useCallback(() => {
     setIsGeneratingPDF(true);
-    setTimeout(() => {
-      try {
-        generateRiskAndBufferPDF(profile);
-        setPdfSuccess(true);
-        setTimeout(() => setPdfSuccess(false), 3500);
-      } catch (err) {
-        console.error('Failed to generate PDF:', err);
-      } finally {
-        setIsGeneratingPDF(false);
-      }
-    }, 50);
-  };
+    try {
+      generateRiskAndBufferPDF(profile);
+      setPdfSuccess(true);
+      setTimeout(() => setPdfSuccess(false), 3500);
+    } catch (err) {
+      console.error('Failed to generate PDF:', err);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  }, [profile]);
 
-  const handleManualCelebrationPreview = () => {
+  const handleManualCelebrationPreview = useCallback(() => {
     setCelebrationPrevScore(Math.max(50, Number((resilience - 6).toFixed(1))));
     setCelebrationNewScore(resilience);
     setThresholdCrossed(resilience >= 85 ? 85 : resilience >= 80 ? 80 : resilience >= 75 ? 75 : 70);
     setIsCelebrationOpen(true);
-  };
+  }, [resilience]);
 
-  const activeMilestone = getMilestoneForScore(resilience);
+  const handleCloseCelebration = useCallback(() => {
+    setIsCelebrationOpen(false);
+  }, []);
+
+  const activeMilestone = useMemo(() => getMilestoneForScore(resilience), [resilience]);
 
   // Sweep action item for quick trigger
-  const sweepAction = profile.actions.find((a) => a.actionType === 'SWEEP_RESERVE') || profile.actions[2];
-  const bankAccounts = profile.connectedBankAccounts || [
-    { id: '1', bankName: 'State Bank of India', mask: '•••• 4821', balanceAvailable: profile.currentLiquidBuffer + 4850, accountType: 'SAVINGS' },
-    { id: '2', bankName: 'HDFC Mandi Merchant', mask: '•••• 9104', balanceAvailable: 8400, accountType: 'CURRENT' },
-  ];
+  const sweepAction = useMemo(() => {
+    return profile.actions.find((a) => a.actionType === 'SWEEP_RESERVE') || profile.actions[2];
+  }, [profile.actions]);
+
+  const bankAccounts = useMemo(() => {
+    return profile.connectedBankAccounts || [
+      { id: '1', bankName: 'State Bank of India', mask: '•••• 4821', balanceAvailable: profile.currentLiquidBuffer + 4850, accountType: 'SAVINGS' },
+      { id: '2', bankName: 'HDFC Mandi Merchant', mask: '•••• 9104', balanceAvailable: 8400, accountType: 'CURRENT' },
+    ];
+  }, [profile.connectedBankAccounts, profile.currentLiquidBuffer]);
 
   // Circular gauge parameters
   const radius = 46;
@@ -204,9 +215,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </p>
 
         {/* Circular Gauge & Liquid Buffer Side-by-Side */}
-        <div className="flex items-center justify-between gap-4 py-2 relative z-10">
+        <div className="flex items-center justify-between gap-3 sm:gap-4 py-2 relative z-10">
           {/* Circular Score Gauge */}
-          <div className="relative w-28 h-28 flex items-center justify-center shrink-0">
+          <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center shrink-0">
             {/* Celebratory ambient ring glow when in safe/resilient tier */}
             {resilience >= 70 && (
               <div className="absolute inset-0 rounded-full border border-amber-400/30 animate-ping opacity-25 pointer-events-none" />
@@ -238,24 +249,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-              <span className="font-display text-3xl font-bold text-[#123524] tracking-tight">
+              <span className="font-display text-2xl sm:text-3xl font-bold text-[#123524] tracking-tight">
                 {Math.round(resilience)}
               </span>
-              <span className="text-[11px] font-medium text-[#64746a] -mt-1">
+              <span className="text-[10px] sm:text-[11px] font-medium text-[#64746a] -mt-0.5 sm:-mt-1">
                 / 100
               </span>
             </div>
           </div>
 
           {/* Liquid Buffer Stat Block */}
-          <div className="flex-1 pl-2">
-            <span className="text-[11px] font-mono tracking-widest uppercase font-semibold text-[#80a98f] block">
+          <div className="flex-1 pl-1 sm:pl-2">
+            <span className="text-[10px] sm:text-[11px] font-mono tracking-widest uppercase font-semibold text-[#80a98f] block">
               Liquid Buffer
             </span>
-            <div className="font-display text-3xl sm:text-4xl font-bold text-white tracking-tight mt-0.5">
+            <div className="font-display text-2xl sm:text-4xl font-bold text-white tracking-tight mt-0.5">
               ₹{liquidBuffer.toLocaleString('en-IN')}
             </div>
-            <p className="text-[13px] text-[#9fc4ad] mt-1 font-normal">
+            <p className="text-[12px] sm:text-[13px] text-[#9fc4ad] mt-0.5 sm:mt-1 font-normal">
               covers ~{essentialDays} essential days
             </p>
           </div>
@@ -554,7 +565,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* Celebratory Milestone Overlay Modal */}
       <CelebrationOverlay
         isOpen={isCelebrationOpen}
-        onClose={() => setIsCelebrationOpen(false)}
+        onClose={handleCloseCelebration}
         profile={profile}
         previousScore={celebrationPrevScore}
         newScore={celebrationNewScore}
@@ -562,4 +573,4 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       />
     </div>
   );
-};
+});

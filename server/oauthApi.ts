@@ -1,6 +1,19 @@
 import axios from 'axios';
 import { OAuthUser } from '../src/types';
-import { setSession, flushToDisk } from './persist';
+
+// Active in-memory session store
+export const authenticatedSessions: Record<string, OAuthUser> = {
+  'demo-borrower-session': {
+    id: 'user_aarti_patel',
+    email: 'nilavra.s2007@gmail.com',
+    name: 'Aarti Patel (Farmer / Borrower)',
+    picture: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+    provider: 'google',
+    role: 'borrower',
+    linkedBorrowerId: 'baws-user-aarti-8821',
+    loginTimestamp: new Date().toISOString(),
+  },
+};
 
 /**
  * Returns OAuth authorization URLs for Google / GitHub or Demo sign in
@@ -107,14 +120,13 @@ export async function exchangeOAuthCode(
       name: googleUser.name || googleUser.email.split('@')[0],
       picture: googleUser.picture,
       provider: 'google',
-      // accessToken intentionally NOT stored — credential leak prevention (#7)
+      accessToken,
       role: 'borrower',
       linkedBorrowerId: 'baws-user-aarti-8821',
       loginTimestamp: new Date().toISOString(),
     };
 
-    setSession(user.id, user);
-    flushToDisk();
+    authenticatedSessions[user.id] = user;
     return user;
   }
 
@@ -155,14 +167,13 @@ export async function exchangeOAuthCode(
       name: ghUser.name || ghUser.login,
       picture: ghUser.avatar_url,
       provider: 'github',
-      // accessToken intentionally NOT stored — credential leak prevention (#7)
+      accessToken,
       role: 'borrower',
       linkedBorrowerId: 'baws-user-aarti-8821',
       loginTimestamp: new Date().toISOString(),
     };
 
-    setSession(user.id, user);
-    flushToDisk();
+    authenticatedSessions[user.id] = user;
     return user;
   }
 
@@ -180,7 +191,7 @@ export function createDemoOAuthSession(
   const sessionId = `demo_${Date.now()}`;
   const user: OAuthUser = {
     id: sessionId,
-    email: email || (role === 'borrower' ? 'demo@baws-platform.example' : 'underwriter.desk@nbfc-risk.example'),
+    email: email || (role === 'borrower' ? 'nilavra.s2007@gmail.com' : 'underwriter.desk@nbfc-risk.in'),
     name: name || (role === 'borrower' ? 'Aarti Patel (Adaptive Borrower)' : 'Dev Sharma (Senior Risk Officer)'),
     picture:
       role === 'borrower'
@@ -192,7 +203,6 @@ export function createDemoOAuthSession(
     loginTimestamp: new Date().toISOString(),
   };
 
-  setSession(sessionId, user);
-  flushToDisk();
+  authenticatedSessions[sessionId] = user;
   return user;
 }

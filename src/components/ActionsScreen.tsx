@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
 import {
   Shield,
@@ -46,7 +46,7 @@ const getActionIcon = (type: ActionItem['actionType']) => {
   }
 };
 
-const SwipeableActionCard: React.FC<SwipeableActionCardProps> = ({
+const SwipeableActionCard: React.FC<SwipeableActionCardProps> = React.memo(({
   action,
   profile,
   onExecute,
@@ -65,10 +65,10 @@ const SwipeableActionCard: React.FC<SwipeableActionCardProps> = ({
   const textTranslateX = useTransform(x, [0, 100], [0, 15]);
 
   const SWIPE_THRESHOLD = 95;
-  const iconConfig = getActionIcon(action.actionType);
+  const iconConfig = useMemo(() => getActionIcon(action.actionType), [action.actionType]);
   const Icon = iconConfig.icon;
 
-  const handleDrag = (_: any, info: any) => {
+  const handleDrag = useCallback((_: any, info: any) => {
     if (isDone) return;
     setIsSwiping(true);
     if (info.offset.x >= SWIPE_THRESHOLD && !isThresholdMet) {
@@ -76,9 +76,9 @@ const SwipeableActionCard: React.FC<SwipeableActionCardProps> = ({
     } else if (info.offset.x < SWIPE_THRESHOLD && isThresholdMet) {
       setIsThresholdMet(false);
     }
-  };
+  }, [isDone, isThresholdMet]);
 
-  const handleDragEnd = (_: any, info: any) => {
+  const handleDragEnd = useCallback((_: any, info: any) => {
     setTimeout(() => setIsSwiping(false), 80);
     if (isDone) return;
 
@@ -94,13 +94,13 @@ const SwipeableActionCard: React.FC<SwipeableActionCardProps> = ({
       onQuickComplete(action.id, action.actionType, action.amount);
       setIsThresholdMet(false);
     }
-  };
+  }, [isDone, action.id, action.actionType, action.amount, onQuickComplete]);
 
-  const handleCardClick = (e: React.MouseEvent) => {
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
     // If the user just dragged, don't open modal
     if (isSwiping) return;
     onSelectForDetails(action);
-  };
+  }, [isSwiping, onSelectForDetails, action]);
 
   return (
     <motion.div
@@ -146,6 +146,7 @@ const SwipeableActionCard: React.FC<SwipeableActionCardProps> = ({
 
       {/* Draggable Foreground Card */}
       <motion.div
+        data-no-tab-swipe="true"
         drag={isDone ? false : 'x'}
         dragDirectionLock
         dragConstraints={{ left: 0, right: 160 }}
@@ -263,9 +264,9 @@ const SwipeableActionCard: React.FC<SwipeableActionCardProps> = ({
       </motion.div>
     </motion.div>
   );
-};
+});
 
-export const ActionsScreen: React.FC<ActionsScreenProps> = ({
+export const ActionsScreen: React.FC<ActionsScreenProps> = React.memo(({
   profile,
   onExecuteAction,
   onQuickComplete = (id, type, amt) => onExecuteAction(profile.actions.find((a) => a.id === id) || profile.actions[0]),
@@ -273,15 +274,20 @@ export const ActionsScreen: React.FC<ActionsScreenProps> = ({
 }) => {
   const [activeFilter, setActiveFilter] = useState<'todo' | 'completed' | 'history'>('todo');
 
-  const todoActions = profile.actions.filter((a) => a.status === 'TODO');
-  const completedActions = profile.actions.filter((a) => a.status === 'COMPLETED');
+  const todoActions = useMemo(() => profile.actions.filter((a) => a.status === 'TODO'), [profile.actions]);
+  const completedActions = useMemo(() => profile.actions.filter((a) => a.status === 'COMPLETED'), [profile.actions]);
 
-  const displayedActions =
-    activeFilter === 'todo'
+  const displayedActions = useMemo(() => {
+    return activeFilter === 'todo'
       ? todoActions
       : activeFilter === 'completed'
       ? completedActions
       : profile.actions;
+  }, [activeFilter, todoActions, completedActions, profile.actions]);
+
+  const handleFilterTodo = useCallback(() => setActiveFilter('todo'), []);
+  const handleFilterCompleted = useCallback(() => setActiveFilter('completed'), []);
+  const handleFilterHistory = useCallback(() => setActiveFilter('history'), []);
 
   return (
     <div className="space-y-4 pb-24">
@@ -307,35 +313,35 @@ export const ActionsScreen: React.FC<ActionsScreenProps> = ({
       </div>
 
       {/* Filter Tabs matching Screenshot 5 */}
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex items-center gap-2 pt-1 overflow-x-auto no-scrollbar pb-0.5">
         <button
-          onClick={() => setActiveFilter('todo')}
-          className={`px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all ${
+          onClick={handleFilterTodo}
+          className={`min-h-[38px] px-4 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap transition-all touch-manipulation active:scale-95 ${
             activeFilter === 'todo'
               ? 'bg-[#123524] text-white shadow-xs'
-              : 'bg-white border border-[#e2dacb] text-[#4a5c50] hover:bg-[#faf8f2]'
+              : 'bg-white border border-[#e2dacb] text-[#4a5c50] hover:bg-[#faf8f2] active:bg-[#f2ece0]'
           }`}
         >
           To do · {todoActions.length}
         </button>
 
         <button
-          onClick={() => setActiveFilter('completed')}
-          className={`px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all ${
+          onClick={handleFilterCompleted}
+          className={`min-h-[38px] px-4 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap transition-all touch-manipulation active:scale-95 ${
             activeFilter === 'completed'
               ? 'bg-[#123524] text-white shadow-xs'
-              : 'bg-white border border-[#e2dacb] text-[#4a5c50] hover:bg-[#faf8f2]'
+              : 'bg-white border border-[#e2dacb] text-[#4a5c50] hover:bg-[#faf8f2] active:bg-[#f2ece0]'
           }`}
         >
           Completed {completedActions.length > 0 && `· ${completedActions.length}`}
         </button>
 
         <button
-          onClick={() => setActiveFilter('history')}
-          className={`px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all ${
+          onClick={handleFilterHistory}
+          className={`min-h-[38px] px-4 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap transition-all touch-manipulation active:scale-95 ${
             activeFilter === 'history'
               ? 'bg-[#123524] text-white shadow-xs'
-              : 'bg-white border border-[#e2dacb] text-[#4a5c50] hover:bg-[#faf8f2]'
+              : 'bg-white border border-[#e2dacb] text-[#4a5c50] hover:bg-[#faf8f2] active:bg-[#f2ece0]'
           }`}
         >
           History · {profile.actions.length}
@@ -403,5 +409,5 @@ export const ActionsScreen: React.FC<ActionsScreenProps> = ({
       </div>
     </div>
   );
-};
+});
 

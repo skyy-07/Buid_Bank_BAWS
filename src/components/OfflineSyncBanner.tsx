@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Wifi, WifiOff, RefreshCw, CheckCircle2, CloudUpload, HardDriveDownload, AlertCircle } from 'lucide-react';
 import { getCacheMetadata, CacheMetadata, getPendingSyncQueue, clearPendingSyncQueue } from '../utils/offlineSync';
 
@@ -6,7 +6,7 @@ interface OfflineSyncBannerProps {
   onTriggerSync?: () => Promise<void>;
 }
 
-export const OfflineSyncBanner: React.FC<OfflineSyncBannerProps> = ({ onTriggerSync }) => {
+export const OfflineSyncBanner: React.FC<OfflineSyncBannerProps> = React.memo(({ onTriggerSync }) => {
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
@@ -55,7 +55,7 @@ export const OfflineSyncBanner: React.FC<OfflineSyncBannerProps> = ({ onTriggerS
     };
   }, [onTriggerSync]);
 
-  const handleManualOnlineSync = async () => {
+  const handleManualOnlineSync = useCallback(async () => {
     if (!isOnline || isSyncing) return;
     setIsSyncing(true);
     setSyncStatusMsg('Syncing cached offline modifications...');
@@ -72,7 +72,7 @@ export const OfflineSyncBanner: React.FC<OfflineSyncBannerProps> = ({ onTriggerS
       setIsSyncing(false);
       setTimeout(() => setSyncStatusMsg(null), 3500);
     }
-  };
+  }, [isOnline, isSyncing, onTriggerSync]);
 
   // Only render if offline, or if there are pending sync items, or if a sync message is active
   if (isOnline && metadata.pendingSyncCount === 0 && !syncStatusMsg) {
@@ -127,4 +127,4 @@ export const OfflineSyncBanner: React.FC<OfflineSyncBannerProps> = ({ onTriggerS
       </div>
     </div>
   );
-};
+});
