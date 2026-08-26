@@ -26,7 +26,7 @@ import {
 } from './server/oauthApi';
 
 // In-memory store initialized with realistic seed profiles
-const profilesStore: Record<string, BorrowerProfile> = {};
+const profilesStore: Record<string, BorrowerProfile> = Object.create(null);
 
 function initStore() {
   const archetypes = getAvailableArchetypes();
